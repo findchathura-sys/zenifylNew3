@@ -831,12 +831,35 @@ const Orders = () => {
     fetchOrders();
     fetchProducts();
     fetchCustomers();
-  }, []);
+  }, [sortBy]);
 
   const fetchOrders = async () => {
     try {
       const response = await axios.get(`${API}/orders`);
-      setOrders(response.data);
+      let sortedOrders = [...response.data];
+      
+      // Sort orders based on selected option
+      switch (sortBy) {
+        case 'newest':
+          sortedOrders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          break;
+        case 'oldest':
+          sortedOrders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+          break;
+        case 'amount_high':
+          sortedOrders.sort((a, b) => b.total_amount - a.total_amount);
+          break;
+        case 'amount_low':
+          sortedOrders.sort((a, b) => a.total_amount - b.total_amount);
+          break;
+        case 'status':
+          sortedOrders.sort((a, b) => a.status.localeCompare(b.status));
+          break;
+        default:
+          break;
+      }
+      
+      setOrders(sortedOrders);
     } catch (error) {
       toast.error("Failed to fetch orders");
     } finally {
