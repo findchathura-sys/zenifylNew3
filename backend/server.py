@@ -248,6 +248,15 @@ async def update_customer(customer_id: str, customer: Customer):
     await db.customers.update_one({"id": customer_id}, {"$set": customer_dict})
     return customer
 
+@api_router.delete("/customers/{customer_id}")
+async def delete_customer(customer_id: str):
+    customer = await db.customers.find_one({"id": customer_id})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    await db.customers.delete_one({"id": customer_id})
+    return {"message": "Customer deleted successfully"}
+
 # Order Routes
 @api_router.post("/orders", response_model=Order)
 async def create_order(order: Order):
