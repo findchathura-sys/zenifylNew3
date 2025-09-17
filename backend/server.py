@@ -88,12 +88,19 @@ class Order(BaseModel):
     customer_name: str
     customer_address: str
     customer_phone: str
+    customer_phone_2: Optional[str] = None
+    customer_city: str
     items: List[OrderItem]
     subtotal: float
     tax_amount: float
+    courier_charges: float = 350.0
+    discount_amount: float = 0.0
+    discount_percentage: float = 0.0
     total_amount: float
     status: OrderStatus = OrderStatus.PENDING
     tracking_number: Optional[str] = None
+    cod_amount: Optional[float] = None
+    remarks: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
