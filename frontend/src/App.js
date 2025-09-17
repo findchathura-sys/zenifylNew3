@@ -1012,14 +1012,25 @@ const Customers = () => {
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="customer-phone">Phone Number</Label>
-              <Input
-                id="customer-phone"
-                value={newCustomer.phone}
-                onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
-                placeholder="+94 71 234 5678"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="customer-phone">Phone Number</Label>
+                <Input
+                  id="customer-phone"
+                  value={newCustomer.phone}
+                  onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
+                  placeholder="+94 71 234 5678"
+                />
+              </div>
+              <div>
+                <Label htmlFor="customer-phone-2">Second Phone (Optional)</Label>
+                <Input
+                  id="customer-phone-2"
+                  value={newCustomer.phone_2}
+                  onChange={(e) => setNewCustomer({...newCustomer, phone_2: e.target.value})}
+                  placeholder="+94 77 123 4567"
+                />
+              </div>
             </div>
 
             <div>
