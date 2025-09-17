@@ -54,7 +54,7 @@ const Sidebar = () => {
     <div className="w-64 bg-gradient-to-b from-slate-900 to-slate-800 text-white min-h-screen p-4">
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
-          ClothierPOS
+          Zuomo
         </h2>
         <p className="text-slate-400 text-sm">Clothing Store Management</p>
       </div>
