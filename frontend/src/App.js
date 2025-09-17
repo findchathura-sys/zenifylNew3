@@ -2697,7 +2697,10 @@ const Finance = () => {
                   <div className="p-4 bg-red-50 rounded-lg">
                     <h3 className="font-semibold text-red-800">Total Cost</h3>
                     <p className="text-2xl font-bold text-red-900">LKR {profitLoss.total_cost.toFixed(2)}</p>
-                    <p className="text-xs text-red-600">Estimated at 60% of revenue</p>
+                    <div className="text-xs text-red-600 mt-1">
+                      <div>Actual: LKR {profitLoss.actual_cost?.toFixed(2) || '0.00'}</div>
+                      <div>Estimated: LKR {profitLoss.estimated_cost?.toFixed(2) || '0.00'}</div>
+                    </div>
                   </div>
                   <div className="p-4 bg-blue-50 rounded-lg">
                     <h3 className="font-semibold text-blue-800">Net Profit</h3>
@@ -2713,15 +2716,39 @@ const Finance = () => {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  <div className="p-4 bg-slate-50 rounded-lg">
+                    <h4 className="font-semibold mb-2">Cost Data Analysis</h4>
+                    <div className="space-y-2 text-sm text-slate-600">
+                      <div><strong>Items with Actual Cost Data:</strong> {profitLoss.items_with_actual_cost || 0} of {profitLoss.total_items_sold || 0}</div>
+                      <div><strong>Cost Data Coverage:</strong> {(profitLoss.cost_data_coverage || 0).toFixed(1)}%</div>
+                      <div className="text-xs text-slate-500 mt-2">
+                        Add buy prices to product variants for more accurate profit calculations
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 bg-yellow-50 rounded-lg">
+                    <h4 className="font-semibold text-yellow-800 mb-2">Calculation Method</h4>
+                    <div className="text-sm text-yellow-700 space-y-1">
+                      <div>• Uses actual buy prices when available</div>
+                      <div>• Falls back to 60% estimation for missing data</div>
+                      <div>• Excludes returned orders from calculations</div>
+                      <div>• Real-time cost tracking for better accuracy</div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="p-4 bg-slate-50 rounded-lg">
                   <h4 className="font-semibold mb-2">Period Summary</h4>
                   <p className="text-slate-600">
                     Analysis from {new Date(profitLoss.start_date).toLocaleDateString()} to {new Date(profitLoss.end_date).toLocaleDateString()}
                   </p>
                   <div className="mt-2 text-sm text-slate-500">
-                    <p>• Cost calculation is estimated at 60% of selling price</p>
+                    <p>• Revenue includes taxes and courier charges minus discounts</p>
+                    <p>• Cost calculation combines actual purchase prices with estimated costs</p>
                     <p>• Profit margin = (Revenue - Cost) / Revenue × 100</p>
-                    <p>• Only delivered orders are included in calculations</p>
+                    <p>• Only delivered and on-courier orders are included in calculations</p>
                   </div>
                 </div>
               </div>
