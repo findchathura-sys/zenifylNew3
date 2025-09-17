@@ -240,8 +240,12 @@ const Inventory = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [lowStockItems, setLowStockItems] = useState([]);
+  const [sortBy, setSortBy] = useState('newest');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [productsPerPage] = useState(20);
 
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -254,12 +258,49 @@ const Inventory = () => {
   useEffect(() => {
     fetchProducts();
     fetchLowStock();
-  }, []);
+  }, [sortBy]);
 
   const fetchProducts = async () => {
     try {
       const response = await axios.get(`${API}/products`);
-      setProducts(response.data);
+      let sortedProducts = [...response.data];
+      
+      // Sort products based on selected option
+      switch (sortBy) {
+        case 'newest':
+          sortedProducts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          break;
+        case 'oldest':
+          sortedProducts.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+          break;
+        case 'name_asc':
+          sortedProducts.sort((a, b) => a.name.localeCompare(b.name));
+          break;
+        case 'name_desc':
+          sortedProducts.sort((a, b) => b.name.localeCompare(a.name));
+          break;
+        case 'category':
+          sortedProducts.sort((a, b) => a.category.localeCompare(b.category));
+          break;
+        case 'stock_low':
+          sortedProducts.sort((a, b) => {
+            const aMinStock = Math.min(...a.variants.map(v => v.stock_quantity));
+            const bMinStock = Math.min(...b.variants.map(v => v.stock_quantity));
+            return aMinStock - bMinStock;
+          });
+          break;
+        case 'stock_high':
+          sortedProducts.sort((a, b) => {
+            const aMaxStock = Math.max(...a.variants.map(v => v.stock_quantity));
+            const bMaxStock = Math.max(...b.variants.map(v => v.stock_quantity));
+            return bMaxStock - aMaxStock;
+          });
+          break;
+        default:
+          break;
+      }
+      
+      setProducts(sortedProducts);
     } catch (error) {
       toast.error("Failed to fetch products");
     } finally {
@@ -281,13 +322,7 @@ const Inventory = () => {
       await axios.post(`${API}/products`, newProduct);
       toast.success("Product added successfully");
       setShowAddDialog(false);
-      setNewProduct({
-        name: '',
-        description: '',
-        category: '',
-        low_stock_threshold: 5,
-        variants: [{ size: 'M', color: '', sku: '', stock_quantity: 0, price: 0 }]
-      });
+      resetNewProduct();
       fetchProducts();
       fetchLowStock();
     } catch (error) {
@@ -295,16 +330,69 @@ const Inventory = () => {
     }
   };
 
+  const handleEditProduct = (product) => {
+    setEditingProduct(product);
+    setNewProduct({
+      name: product.name,
+      description: product.description,
+      category: product.category,
+      low_stock_threshold: product.low_stock_threshold,
+      variants: product.variants.map(variant => ({
+        id: variant.id,
+        size: variant.size,
+        color: variant.color,
+        sku: variant.sku,
+        stock_quantity: variant.stock_quantity,
+        price: variant.price
+      }))
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleUpdateProduct = async () => {
+    try {
+      const updatedProduct = {
+        ...editingProduct,
+        name: newProduct.name,
+        description: newProduct.description,
+        category: newProduct.category,
+        low_stock_threshold: newProduct.low_stock_threshold,
+        variants: newProduct.variants
+      };
+      
+      await axios.put(`${API}/products/${editingProduct.id}`, updatedProduct);
+      toast.success("Product updated successfully");
+      setShowEditDialog(false);
+      setEditingProduct(null);
+      resetNewProduct();
+      fetchProducts();
+      fetchLowStock();
+    } catch (error) {
+      toast.error("Failed to update product");
+    }
+  };
+
   const handleDeleteProduct = async (productId) => {
-    if (window.confirm("Are you sure you want to delete this product?")) {
+    if (window.confirm("Are you sure you want to delete this product? This action cannot be undone.")) {
       try {
         await axios.delete(`${API}/products/${productId}`);
         toast.success("Product deleted successfully");
         fetchProducts();
+        fetchLowStock();
       } catch (error) {
         toast.error("Failed to delete product");
       }
     }
+  };
+
+  const resetNewProduct = () => {
+    setNewProduct({
+      name: '',
+      description: '',
+      category: '',
+      low_stock_threshold: 5,
+      variants: [{ size: 'M', color: '', sku: '', stock_quantity: 0, price: 0 }]
+    });
   };
 
   const addVariant = () => {
@@ -324,6 +412,14 @@ const Inventory = () => {
     const updatedVariants = newProduct.variants.filter((_, i) => i !== index);
     setNewProduct({ ...newProduct, variants: updatedVariants });
   };
+
+  // Pagination helpers
+  const indexOfLastProduct = currentPage * productsPerPage;
+  const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
+  const currentProducts = products.slice(indexOfFirstProduct, indexOfLastProduct);
+  const totalPages = Math.ceil(products.length / productsPerPage);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   if (loading) return <div className="p-6">Loading inventory...</div>;
 
@@ -346,8 +442,56 @@ const Inventory = () => {
         </Alert>
       )}
 
+      {/* Sorting and Controls */}
+      <div className="flex items-center justify-between bg-white p-4 rounded-lg shadow-sm">
+        <div className="flex items-center space-x-4">
+          <Label htmlFor="sort-select">Sort by:</Label>
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest First</SelectItem>
+              <SelectItem value="oldest">Oldest First</SelectItem>
+              <SelectItem value="name_asc">Name (A-Z)</SelectItem>
+              <SelectItem value="name_desc">Name (Z-A)</SelectItem>
+              <SelectItem value="category">Category</SelectItem>
+              <SelectItem value="stock_low">Stock (Low to High)</SelectItem>
+              <SelectItem value="stock_high">Stock (High to Low)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="flex items-center space-x-4">
+          <span className="text-sm text-slate-600">
+            Showing {indexOfFirstProduct + 1}-{Math.min(indexOfLastProduct, products.length)} of {products.length} products
+          </span>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => paginate(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            <span className="text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => paginate(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-6">
-        {products.map((product) => (
+        {currentProducts.map((product) => (
           <Card key={product.id} className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -356,8 +500,14 @@ const Inventory = () => {
                   <CardDescription>{product.description}</CardDescription>
                 </div>
                 <div className="flex space-x-2">
-                  <Button variant="outline" size="sm">
-                    <Edit size={16} />
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleEditProduct(product)}
+                    className="text-blue-600"
+                  >
+                    <Edit size={16} className="mr-1" />
+                    Edit
                   </Button>
                   <Button 
                     variant="outline" 
@@ -365,7 +515,8 @@ const Inventory = () => {
                     onClick={() => handleDeleteProduct(product.id)}
                     className="text-red-600 hover:text-red-700"
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={16} className="mr-1" />
+                    Delete
                   </Button>
                 </div>
               </div>
@@ -375,6 +526,7 @@ const Inventory = () => {
                 <div className="flex items-center space-x-4 text-sm text-slate-600">
                   <span><strong>Category:</strong> {product.category}</span>
                   <span><strong>Low Stock Threshold:</strong> {product.low_stock_threshold}</span>
+                  <span><strong>Created:</strong> {new Date(product.created_at).toLocaleDateString()}</span>
                 </div>
                 
                 <div>
