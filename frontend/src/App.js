@@ -234,17 +234,335 @@ const Dashboard = () => {
   );
 };
 
-// Basic placeholder components for now
-const Inventory = () => (
-  <div className="p-6">
-    <h1 className="text-3xl font-bold mb-6">Inventory Management</h1>
-    <Card>
-      <CardContent className="p-6">
-        <p className="text-slate-600">Inventory management functionality coming soon...</p>
-      </CardContent>
-    </Card>
-  </div>
-);
+// Inventory Management Component
+const Inventory = () => {
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [lowStockItems, setLowStockItems] = useState([]);
+
+  const [newProduct, setNewProduct] = useState({
+    name: '',
+    description: '',
+    category: '',
+    low_stock_threshold: 5,
+    variants: [{ size: 'M', color: '', sku: '', stock_quantity: 0, price: 0 }]
+  });
+
+  useEffect(() => {
+    fetchProducts();
+    fetchLowStock();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      const response = await axios.get(`${API}/products`);
+      setProducts(response.data);
+    } catch (error) {
+      toast.error("Failed to fetch products");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchLowStock = async () => {
+    try {
+      const response = await axios.get(`${API}/products/low-stock`);
+      setLowStockItems(response.data);
+    } catch (error) {
+      console.error("Failed to fetch low stock items");
+    }
+  };
+
+  const handleAddProduct = async () => {
+    try {
+      await axios.post(`${API}/products`, newProduct);
+      toast.success("Product added successfully");
+      setShowAddDialog(false);
+      setNewProduct({
+        name: '',
+        description: '',
+        category: '',
+        low_stock_threshold: 5,
+        variants: [{ size: 'M', color: '', sku: '', stock_quantity: 0, price: 0 }]
+      });
+      fetchProducts();
+      fetchLowStock();
+    } catch (error) {
+      toast.error("Failed to add product");
+    }
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    if (window.confirm("Are you sure you want to delete this product?")) {
+      try {
+        await axios.delete(`${API}/products/${productId}`);
+        toast.success("Product deleted successfully");
+        fetchProducts();
+      } catch (error) {
+        toast.error("Failed to delete product");
+      }
+    }
+  };
+
+  const addVariant = () => {
+    setNewProduct({
+      ...newProduct,
+      variants: [...newProduct.variants, { size: 'M', color: '', sku: '', stock_quantity: 0, price: 0 }]
+    });
+  };
+
+  const updateVariant = (index, field, value) => {
+    const updatedVariants = [...newProduct.variants];
+    updatedVariants[index][field] = value;
+    setNewProduct({ ...newProduct, variants: updatedVariants });
+  };
+
+  const removeVariant = (index) => {
+    const updatedVariants = newProduct.variants.filter((_, i) => i !== index);
+    setNewProduct({ ...newProduct, variants: updatedVariants });
+  };
+
+  if (loading) return <div className="p-6">Loading inventory...</div>;
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-slate-800">Inventory Management</h1>
+        <Button onClick={() => setShowAddDialog(true)} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+          <Plus size={20} className="mr-2" />
+          Add Product
+        </Button>
+      </div>
+
+      {lowStockItems.length > 0 && (
+        <Alert className="bg-red-50 border-red-200">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>{lowStockItems.length} items</strong> are running low on stock and need restocking.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid gap-6">
+        {products.map((product) => (
+          <Card key={product.id} className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl">{product.name}</CardTitle>
+                  <CardDescription>{product.description}</CardDescription>
+                </div>
+                <div className="flex space-x-2">
+                  <Button variant="outline" size="sm">
+                    <Edit size={16} />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleDeleteProduct(product.id)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 size={16} />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center space-x-4 text-sm text-slate-600">
+                  <span><strong>Category:</strong> {product.category}</span>
+                  <span><strong>Low Stock Threshold:</strong> {product.low_stock_threshold}</span>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold mb-3">Variants:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {product.variants?.map((variant) => (
+                      <div key={variant.id} className="p-3 bg-slate-50 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="secondary">{variant.size}</Badge>
+                            <span className="text-sm font-medium">{variant.color}</span>
+                          </div>
+                          <Badge variant={variant.stock_quantity <= product.low_stock_threshold ? "destructive" : "default"}>
+                            {variant.stock_quantity} in stock
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-slate-600 space-y-1">
+                          <div><strong>SKU:</strong> {variant.sku}</div>
+                          <div><strong>Price:</strong> LKR {variant.price.toFixed(2)}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Add Product Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New Product</DialogTitle>
+            <DialogDescription>
+              Create a new product with multiple size and color variants.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="name">Product Name</Label>
+                <Input
+                  id="name"
+                  value={newProduct.name}
+                  onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
+                  placeholder="Enter product name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="category">Category</Label>
+                <Input
+                  id="category"
+                  value={newProduct.category}
+                  onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
+                  placeholder="e.g., T-Shirts, Jeans, Dresses"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={newProduct.description}
+                onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
+                placeholder="Product description"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="threshold">Low Stock Threshold</Label>
+              <Input
+                id="threshold"
+                type="number"
+                value={newProduct.low_stock_threshold}
+                onChange={(e) => setNewProduct({...newProduct, low_stock_threshold: parseInt(e.target.value)})}
+                placeholder="5"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <Label>Product Variants</Label>
+                <Button type="button" onClick={addVariant} variant="outline" size="sm">
+                  <Plus size={16} className="mr-2" />
+                  Add Variant
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                {newProduct.variants.map((variant, index) => (
+                  <div key={index} className="p-4 border rounded-lg bg-slate-50">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium">Variant {index + 1}</h4>
+                      {newProduct.variants.length > 1 && (
+                        <Button
+                          type="button"
+                          onClick={() => removeVariant(index)}
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600"
+                        >
+                          <Trash2 size={16} />
+                        </Button>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <div>
+                        <Label>Size</Label>
+                        <Select
+                          value={variant.size}
+                          onValueChange={(value) => updateVariant(index, 'size', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="XS">XS</SelectItem>
+                            <SelectItem value="S">S</SelectItem>
+                            <SelectItem value="M">M</SelectItem>
+                            <SelectItem value="L">L</SelectItem>
+                            <SelectItem value="XL">XL</SelectItem>
+                            <SelectItem value="XXL">XXL</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div>
+                        <Label>Color</Label>
+                        <Input
+                          value={variant.color}
+                          onChange={(e) => updateVariant(index, 'color', e.target.value)}
+                          placeholder="Red, Blue, etc."
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label>SKU</Label>
+                        <Input
+                          value={variant.sku}
+                          onChange={(e) => updateVariant(index, 'sku', e.target.value)}
+                          placeholder="SKU123"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label>Stock Qty</Label>
+                        <Input
+                          type="number"
+                          value={variant.stock_quantity}
+                          onChange={(e) => updateVariant(index, 'stock_quantity', parseInt(e.target.value) || 0)}
+                          placeholder="0"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label>Price (LKR)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={variant.price}
+                          onChange={(e) => updateVariant(index, 'price', parseFloat(e.target.value) || 0)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddProduct} className="bg-gradient-to-r from-blue-600 to-purple-600">
+              Add Product
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
 
 const Customers = () => (
   <div className="p-6">
