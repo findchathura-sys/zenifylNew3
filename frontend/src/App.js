@@ -1138,6 +1138,62 @@ const Orders = () => {
     setNewOrder({ ...newOrder, items: updatedItems });
   };
 
+  // Bulk order creation helpers
+  const addBulkOrder = () => {
+    setBulkOrders([
+      ...bulkOrders,
+      {
+        customer_id: '',
+        items: [{ product_id: '', variant_id: '', quantity: 1 }],
+        tax_rate: 0,
+        tracking_number: ''
+      }
+    ]);
+  };
+
+  const updateBulkOrder = (orderIndex, field, value) => {
+    const updatedOrders = [...bulkOrders];
+    updatedOrders[orderIndex][field] = value;
+    setBulkOrders(updatedOrders);
+  };
+
+  const updateBulkOrderItem = (orderIndex, itemIndex, field, value) => {
+    const updatedOrders = [...bulkOrders];
+    updatedOrders[orderIndex].items[itemIndex][field] = value;
+    
+    // Reset variant_id when product changes
+    if (field === 'product_id') {
+      updatedOrders[orderIndex].items[itemIndex].variant_id = '';
+    }
+    
+    setBulkOrders(updatedOrders);
+  };
+
+  const addBulkOrderItem = (orderIndex) => {
+    const updatedOrders = [...bulkOrders];
+    updatedOrders[orderIndex].items.push({ product_id: '', variant_id: '', quantity: 1 });
+    setBulkOrders(updatedOrders);
+  };
+
+  const removeBulkOrderItem = (orderIndex, itemIndex) => {
+    const updatedOrders = [...bulkOrders];
+    updatedOrders[orderIndex].items = updatedOrders[orderIndex].items.filter((_, i) => i !== itemIndex);
+    setBulkOrders(updatedOrders);
+  };
+
+  const removeBulkOrder = (orderIndex) => {
+    const updatedOrders = bulkOrders.filter((_, i) => i !== orderIndex);
+    setBulkOrders(updatedOrders);
+  };
+
+  // Pagination helpers
+  const indexOfLastOrder = currentPage * ordersPerPage;
+  const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
+  const currentOrders = orders.slice(indexOfFirstOrder, indexOfLastOrder);
+  const totalPages = Math.ceil(orders.length / ordersPerPage);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
