@@ -527,17 +527,51 @@ async def get_profit_loss(start_date: str, end_date: str):
     }).to_list(1000)
     
     total_revenue = sum(order["total_amount"] for order in orders)
-    # For simplicity, assuming cost is 60% of selling price
-    total_cost = total_revenue * 0.6
+    total_actual_cost = 0.0
+    total_estimated_cost = 0.0
+    items_with_cost_data = 0
+    total_items = 0
+    
+    # Calculate actual costs from buy prices
+    for order in orders:
+        order_obj = Order(**parse_from_mongo(order))
+        for item in order_obj.items:
+            total_items += item.quantity
+            # Try to get actual buy price from product variant
+            product = await db.products.find_one({"id": item.product_id})
+            if product:
+                product_obj = Product(**parse_from_mongo(product))
+                for variant in product_obj.variants:
+                    if variant.id == item.variant_id and variant.buy_price:
+                        actual_cost = variant.buy_price * item.quantity
+                        total_actual_cost += actual_cost
+                        items_with_cost_data += item.quantity
+                        break
+                else:
+                    # No buy price found, use estimated cost
+                    estimated_cost = item.unit_price * 0.6 * item.quantity
+                    total_estimated_cost += estimated_cost
+            else:
+                # Product not found, use estimated cost
+                estimated_cost = item.unit_price * 0.6 * item.quantity
+                total_estimated_cost += estimated_cost
+    
+    total_cost = total_actual_cost + total_estimated_cost
     profit = total_revenue - total_cost
+    profit_margin = (profit / total_revenue * 100) if total_revenue > 0 else 0
     
     return {
         "start_date": start_date,
         "end_date": end_date,
         "total_revenue": total_revenue,
         "total_cost": total_cost,
+        "actual_cost": total_actual_cost,
+        "estimated_cost": total_estimated_cost,
         "profit": profit,
-        "profit_margin": (profit / total_revenue * 100) if total_revenue > 0 else 0
+        "profit_margin": profit_margin,
+        "cost_data_coverage": (items_with_cost_data / total_items * 100) if total_items > 0 else 0,
+        "items_with_actual_cost": items_with_cost_data,
+        "total_items_sold": total_items
     }
 
 # Settings Routes
