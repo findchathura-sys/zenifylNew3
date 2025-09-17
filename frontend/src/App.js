@@ -564,16 +564,233 @@ const Inventory = () => {
   );
 };
 
-const Customers = () => (
-  <div className="p-6">
-    <h1 className="text-3xl font-bold mb-6">Customer Management</h1>
-    <Card>
-      <CardContent className="p-6">
-        <p className="text-slate-600">Customer management functionality coming soon...</p>
-      </CardContent>
-    </Card>
-  </div>
-);
+// Customer Management Component
+const Customers = () => {
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState(null);
+
+  const [newCustomer, setNewCustomer] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    city: '',
+    postal_code: ''
+  });
+
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  const fetchCustomers = async () => {
+    try {
+      const response = await axios.get(`${API}/customers`);
+      setCustomers(response.data);
+    } catch (error) {
+      toast.error("Failed to fetch customers");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddCustomer = async () => {
+    try {
+      await axios.post(`${API}/customers`, newCustomer);
+      toast.success("Customer added successfully");
+      setShowAddDialog(false);
+      setNewCustomer({
+        name: '',
+        email: '',
+        phone: '',
+        address: '',
+        city: '',
+        postal_code: ''
+      });
+      fetchCustomers();
+    } catch (error) {
+      toast.error("Failed to add customer");
+    }
+  };
+
+  const handleEditCustomer = (customer) => {
+    setEditingCustomer(customer);
+    setNewCustomer(customer);
+    setShowAddDialog(true);
+  };
+
+  const handleUpdateCustomer = async () => {
+    try {
+      await axios.put(`${API}/customers/${editingCustomer.id}`, newCustomer);
+      toast.success("Customer updated successfully");
+      setShowAddDialog(false);
+      setEditingCustomer(null);
+      setNewCustomer({
+        name: '',
+        email: '',
+        phone: '',
+        address: '',
+        city: '',
+        postal_code: ''
+      });
+      fetchCustomers();
+    } catch (error) {
+      toast.error("Failed to update customer");
+    }
+  };
+
+  if (loading) return <div className="p-6">Loading customers...</div>;
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-slate-800">Customer Management</h1>
+        <Button onClick={() => setShowAddDialog(true)} className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700">
+          <Plus size={20} className="mr-2" />
+          Add Customer
+        </Button>
+      </div>
+
+      <div className="grid gap-4">
+        {customers.map((customer) => (
+          <Card key={customer.id} className="hover:shadow-lg transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1">
+                  <div>
+                    <h3 className="font-semibold text-lg">{customer.name}</h3>
+                    <p className="text-slate-600">{customer.email}</p>
+                    <p className="text-slate-600">{customer.phone}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-600">
+                      <strong>Address:</strong><br />
+                      {customer.address}<br />
+                      {customer.city}, {customer.postal_code}
+                    </p>
+                  </div>
+                  <div className="text-sm text-slate-500">
+                    <p>Customer since: {new Date(customer.created_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+                <div className="flex space-x-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleEditCustomer(customer)}
+                  >
+                    <Edit size={16} />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Add/Edit Customer Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingCustomer ? 'Edit Customer' : 'Add New Customer'}</DialogTitle>
+            <DialogDescription>
+              {editingCustomer ? 'Update customer information.' : 'Add a new customer to your database.'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="customer-name">Full Name</Label>
+                <Input
+                  id="customer-name"
+                  value={newCustomer.name}
+                  onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
+                  placeholder="John Doe"
+                />
+              </div>
+              <div>
+                <Label htmlFor="customer-email">Email</Label>
+                <Input
+                  id="customer-email"
+                  type="email"
+                  value={newCustomer.email}
+                  onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
+                  placeholder="john@example.com"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="customer-phone">Phone Number</Label>
+              <Input
+                id="customer-phone"
+                value={newCustomer.phone}
+                onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
+                placeholder="+94 71 234 5678"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="customer-address">Address</Label>
+              <Textarea
+                id="customer-address"
+                value={newCustomer.address}
+                onChange={(e) => setNewCustomer({...newCustomer, address: e.target.value})}
+                placeholder="Street address"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="customer-city">City</Label>
+                <Input
+                  id="customer-city"
+                  value={newCustomer.city}
+                  onChange={(e) => setNewCustomer({...newCustomer, city: e.target.value})}
+                  placeholder="Colombo"
+                />
+              </div>
+              <div>
+                <Label htmlFor="customer-postal">Postal Code</Label>
+                <Input
+                  id="customer-postal"
+                  value={newCustomer.postal_code}
+                  onChange={(e) => setNewCustomer({...newCustomer, postal_code: e.target.value})}
+                  placeholder="00100"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowAddDialog(false);
+              setEditingCustomer(null);
+              setNewCustomer({
+                name: '',
+                email: '',
+                phone: '',
+                address: '',
+                city: '',
+                postal_code: ''
+              });
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={editingCustomer ? handleUpdateCustomer : handleAddCustomer}
+              className="bg-gradient-to-r from-green-600 to-teal-600"
+            >
+              {editingCustomer ? 'Update Customer' : 'Add Customer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
 
 const Orders = () => (
   <div className="p-6">
