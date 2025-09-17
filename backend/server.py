@@ -66,6 +66,7 @@ class Customer(BaseModel):
     name: str
     email: str
     phone: str
+    phone_2: Optional[str] = None
     address: str
     city: str
     postal_code: str
