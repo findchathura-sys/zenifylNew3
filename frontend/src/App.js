@@ -1902,12 +1902,7 @@ const Orders = () => {
                     <Button 
                       size="sm" 
                       variant="outline"
-                      onClick={() => {
-                        const trackingNumber = prompt("Enter tracking number:");
-                        if (trackingNumber) {
-                          updateOrderStatus(order.id, 'on_courier', trackingNumber);
-                        }
-                      }}
+                      onClick={() => updateOrderStatus(order.id, 'on_courier')}
                     >
                       Ship Order
                     </Button>
