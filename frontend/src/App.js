@@ -711,11 +711,19 @@ const Inventory = () => {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowAddDialog(false);
+              setShowEditDialog(false);
+              setEditingProduct(null);
+              resetNewProduct();
+            }}>
               Cancel
             </Button>
-            <Button onClick={handleAddProduct} className="bg-gradient-to-r from-blue-600 to-purple-600">
-              Add Product
+            <Button 
+              onClick={editingProduct ? handleUpdateProduct : handleAddProduct} 
+              className="bg-gradient-to-r from-blue-600 to-purple-600"
+            >
+              {editingProduct ? 'Update Product' : 'Add Product'}
             </Button>
           </DialogFooter>
         </DialogContent>
