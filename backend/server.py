@@ -83,7 +83,7 @@ class OrderItem(BaseModel):
 
 class Order(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    order_number: str
+    order_number: Optional[str] = None
     customer_id: str
     customer_name: str
     customer_address: str
