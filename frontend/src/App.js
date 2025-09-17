@@ -1306,15 +1306,22 @@ const Orders = () => {
     const url = `${API}/orders/bulk-labels`;
     const newWindow = window.open();
     
-    axios.post(url, selectedOrders)
+    axios.post(url, selectedOrders, {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      responseType: 'text'  // Important: specify text response type for HTML
+    })
       .then(response => {
         newWindow.document.write(response.data);
         newWindow.document.close();
         setTimeout(() => {
           newWindow.print();
         }, 500);
+        toast.success("Labels generated successfully");
       })
       .catch(error => {
+        console.error("Label generation error:", error);
         toast.error("Failed to generate labels");
         newWindow.close();
       });
