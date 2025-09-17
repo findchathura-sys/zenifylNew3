@@ -164,32 +164,58 @@ class ClothierPOSAPITester:
         """Test complete order workflow"""
         print("\n🛒 Testing Orders Workflow...")
         
-        # Need products and customers first
-        if not self.created_items['products'] or not self.created_items['customers']:
-            return self.log_test("Orders Workflow", False, "- Missing products or customers")
-        
         # Test GET orders
         success, _ = self.run_api_test('GET', 'orders', 200)
         self.log_test("Get Orders", success)
         
-        # Get product details for order creation
-        product_id = self.created_items['products'][0]
-        success, product = self.run_api_test('GET', f"products/{product_id}", 200)
-        if not success or not product.get('variants'):
-            return self.log_test("Orders Workflow", False, "- Cannot get product variants")
+        # Create fresh product and customer for order test
+        product_data = {
+            "name": "Order Test T-Shirt",
+            "description": "A test t-shirt for order workflow",
+            "category": "T-Shirts",
+            "low_stock_threshold": 5,
+            "variants": [
+                {
+                    "size": "M",
+                    "color": "Green",
+                    "sku": "ORDER-TSH-M-GRN",
+                    "stock_quantity": 20,
+                    "price": 2000.00
+                }
+            ]
+        }
         
+        success, product = self.run_api_test('POST', 'products', 200, product_data)
+        if not success or 'id' not in product:
+            return self.log_test("Orders Workflow", False, "- Cannot create test product")
+        
+        test_product_id = product['id']
+        
+        customer_data = {
+            "name": "Order Test Customer",
+            "email": "ordertest@example.com",
+            "phone": "+94 71 999 8888",
+            "address": "456 Order Test Street",
+            "city": "Kandy",
+            "postal_code": "20000"
+        }
+        
+        success, customer = self.run_api_test('POST', 'customers', 200, customer_data)
+        if not success or 'id' not in customer:
+            return self.log_test("Orders Workflow", False, "- Cannot create test customer")
+        
+        test_customer_id = customer['id']
         variant = product['variants'][0]
-        customer_id = self.created_items['customers'][0]
         
         # Test CREATE order
         order_data = {
-            "customer_id": customer_id,
-            "customer_name": "John Doe",
-            "customer_address": "123 Test Street, Colombo, 00100",
-            "customer_phone": "+94 71 234 5678",
+            "customer_id": test_customer_id,
+            "customer_name": customer['name'],
+            "customer_address": f"{customer['address']}, {customer['city']}, {customer['postal_code']}",
+            "customer_phone": customer['phone'],
             "items": [
                 {
-                    "product_id": product_id,
+                    "product_id": test_product_id,
                     "variant_id": variant['id'],
                     "product_name": product['name'],
                     "size": variant['size'],
@@ -222,6 +248,9 @@ class ClothierPOSAPITester:
             success, _ = self.run_api_test('PUT', f"orders/{order_id}/status", 200, 
                                         params={'status': 'returned'})
             self.log_test("Update Order Status (Returned)", success)
+            
+            # Clean up test data
+            self.run_api_test('DELETE', f"products/{test_product_id}", 200)
             
         else:
             self.log_test("Create Order", False)
