@@ -934,6 +934,9 @@ const Customers = () => {
                     <h3 className="font-semibold text-lg">{customer.name}</h3>
                     <p className="text-slate-600">{customer.email}</p>
                     <p className="text-slate-600">{customer.phone}</p>
+                    {customer.phone_2 && (
+                      <p className="text-slate-600">{customer.phone_2}</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-sm text-slate-600">
