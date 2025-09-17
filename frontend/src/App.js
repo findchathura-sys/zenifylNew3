@@ -737,7 +737,11 @@ const Customers = () => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
+  const [sortBy, setSortBy] = useState('newest');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [customersPerPage] = useState(20);
 
   const [newCustomer, setNewCustomer] = useState({
     name: '',
@@ -750,12 +754,38 @@ const Customers = () => {
 
   useEffect(() => {
     fetchCustomers();
-  }, []);
+  }, [sortBy]);
 
   const fetchCustomers = async () => {
     try {
       const response = await axios.get(`${API}/customers`);
-      setCustomers(response.data);
+      let sortedCustomers = [...response.data];
+      
+      // Sort customers based on selected option
+      switch (sortBy) {
+        case 'newest':
+          sortedCustomers.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          break;
+        case 'oldest':
+          sortedCustomers.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+          break;
+        case 'name_asc':
+          sortedCustomers.sort((a, b) => a.name.localeCompare(b.name));
+          break;
+        case 'name_desc':
+          sortedCustomers.sort((a, b) => b.name.localeCompare(a.name));
+          break;
+        case 'city':
+          sortedCustomers.sort((a, b) => a.city.localeCompare(b.city));
+          break;
+        case 'email':
+          sortedCustomers.sort((a, b) => a.email.localeCompare(b.email));
+          break;
+        default:
+          break;
+      }
+      
+      setCustomers(sortedCustomers);
     } catch (error) {
       toast.error("Failed to fetch customers");
     } finally {
@@ -768,14 +798,7 @@ const Customers = () => {
       await axios.post(`${API}/customers`, newCustomer);
       toast.success("Customer added successfully");
       setShowAddDialog(false);
-      setNewCustomer({
-        name: '',
-        email: '',
-        phone: '',
-        address: '',
-        city: '',
-        postal_code: ''
-      });
+      resetNewCustomer();
       fetchCustomers();
     } catch (error) {
       toast.error("Failed to add customer");
@@ -784,29 +807,60 @@ const Customers = () => {
 
   const handleEditCustomer = (customer) => {
     setEditingCustomer(customer);
-    setNewCustomer(customer);
-    setShowAddDialog(true);
+    setNewCustomer({
+      name: customer.name,
+      email: customer.email,
+      phone: customer.phone,
+      address: customer.address,
+      city: customer.city,
+      postal_code: customer.postal_code
+    });
+    setShowEditDialog(true);
   };
 
   const handleUpdateCustomer = async () => {
     try {
       await axios.put(`${API}/customers/${editingCustomer.id}`, newCustomer);
       toast.success("Customer updated successfully");
-      setShowAddDialog(false);
+      setShowEditDialog(false);
       setEditingCustomer(null);
-      setNewCustomer({
-        name: '',
-        email: '',
-        phone: '',
-        address: '',
-        city: '',
-        postal_code: ''
-      });
+      resetNewCustomer();
       fetchCustomers();
     } catch (error) {
       toast.error("Failed to update customer");
     }
   };
+
+  const handleDeleteCustomer = async (customerId) => {
+    if (window.confirm("Are you sure you want to delete this customer? This action cannot be undone.")) {
+      try {
+        await axios.delete(`${API}/customers/${customerId}`);
+        toast.success("Customer deleted successfully");
+        fetchCustomers();
+      } catch (error) {
+        toast.error("Failed to delete customer");
+      }
+    }
+  };
+
+  const resetNewCustomer = () => {
+    setNewCustomer({
+      name: '',
+      email: '',
+      phone: '',
+      address: '',
+      city: '',
+      postal_code: ''
+    });
+  };
+
+  // Pagination helpers
+  const indexOfLastCustomer = currentPage * customersPerPage;
+  const indexOfFirstCustomer = indexOfLastCustomer - customersPerPage;
+  const currentCustomers = customers.slice(indexOfFirstCustomer, indexOfLastCustomer);
+  const totalPages = Math.ceil(customers.length / customersPerPage);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   if (loading) return <div className="p-6">Loading customers...</div>;
 
@@ -820,8 +874,55 @@ const Customers = () => {
         </Button>
       </div>
 
+      {/* Sorting and Controls */}
+      <div className="flex items-center justify-between bg-white p-4 rounded-lg shadow-sm">
+        <div className="flex items-center space-x-4">
+          <Label htmlFor="sort-select">Sort by:</Label>
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest First</SelectItem>
+              <SelectItem value="oldest">Oldest First</SelectItem>
+              <SelectItem value="name_asc">Name (A-Z)</SelectItem>
+              <SelectItem value="name_desc">Name (Z-A)</SelectItem>
+              <SelectItem value="city">City</SelectItem>
+              <SelectItem value="email">Email</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="flex items-center space-x-4">
+          <span className="text-sm text-slate-600">
+            Showing {indexOfFirstCustomer + 1}-{Math.min(indexOfLastCustomer, customers.length)} of {customers.length} customers
+          </span>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => paginate(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            <span className="text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => paginate(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-4">
-        {customers.map((customer) => (
+        {currentCustomers.map((customer) => (
           <Card key={customer.id} className="hover:shadow-lg transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -839,7 +940,7 @@ const Customers = () => {
                     </p>
                   </div>
                   <div className="text-sm text-slate-500">
-                    <p>Customer since: {new Date(customer.created_at).toLocaleDateString()}</p>
+                    <p><strong>Customer since:</strong> {new Date(customer.created_at).toLocaleDateString()}</p>
                   </div>
                 </div>
                 <div className="flex space-x-2">
@@ -847,8 +948,19 @@ const Customers = () => {
                     variant="outline" 
                     size="sm"
                     onClick={() => handleEditCustomer(customer)}
+                    className="text-blue-600"
                   >
-                    <Edit size={16} />
+                    <Edit size={16} className="mr-1" />
+                    Edit
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleDeleteCustomer(customer.id)}
+                    className="text-red-600"
+                  >
+                    <Trash2 size={16} className="mr-1" />
+                    Delete
                   </Button>
                 </div>
               </div>
