@@ -1540,6 +1540,237 @@ const Orders = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Create Orders Dialog */}
+      <Dialog open={showBulkCreateDialog} onOpenChange={setShowBulkCreateDialog}>
+        <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bulk Create Orders</DialogTitle>
+            <DialogDescription>
+              Create multiple orders at once. Each order can have multiple items.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium">Orders to Create ({bulkOrders.length})</h4>
+              <Button onClick={addBulkOrder} variant="outline" size="sm">
+                <Plus size={16} className="mr-2" />
+                Add Another Order
+              </Button>
+            </div>
+
+            <div className="space-y-6 max-h-96 overflow-y-auto">
+              {bulkOrders.map((order, orderIndex) => (
+                <div key={orderIndex} className="p-4 border-2 border-dashed border-slate-200 rounded-lg bg-slate-50">
+                  <div className="flex items-center justify-between mb-4">
+                    <h5 className="font-medium text-lg">Order {orderIndex + 1}</h5>
+                    {bulkOrders.length > 1 && (
+                      <Button
+                        onClick={() => removeBulkOrder(orderIndex)}
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600"
+                      >
+                        <Trash2 size={16} />
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <Label>Customer</Label>
+                      <Select 
+                        value={order.customer_id} 
+                        onValueChange={(value) => updateBulkOrder(orderIndex, 'customer_id', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose customer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {customers.map((customer) => (
+                            <SelectItem key={customer.id} value={customer.id}>
+                              {customer.name} - {customer.email}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <Label>Tax Rate (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={order.tax_rate}
+                        onChange={(e) => updateBulkOrder(orderIndex, 'tax_rate', parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label>Waybill/Tracking Number</Label>
+                      <Input
+                        value={order.tracking_number}
+                        onChange={(e) => updateBulkOrder(orderIndex, 'tracking_number', e.target.value)}
+                        placeholder="Optional"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Order Items */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <Label>Items for Order {orderIndex + 1}</Label>
+                      <Button 
+                        onClick={() => addBulkOrderItem(orderIndex)} 
+                        variant="outline" 
+                        size="sm"
+                      >
+                        <Plus size={16} className="mr-2" />
+                        Add Item
+                      </Button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {order.items.map((item, itemIndex) => (
+                        <div key={itemIndex} className="p-3 bg-white rounded border">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium">Item {itemIndex + 1}</span>
+                            {order.items.length > 1 && (
+                              <Button
+                                onClick={() => removeBulkOrderItem(orderIndex, itemIndex)}
+                                variant="outline"
+                                size="sm"
+                                className="text-red-600"
+                              >
+                                <Trash2 size={14} />
+                              </Button>
+                            )}
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <div>
+                              <Select
+                                value={item.product_id}
+                                onValueChange={(value) => updateBulkOrderItem(orderIndex, itemIndex, 'product_id', value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Product" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {products.map((product) => (
+                                    <SelectItem key={product.id} value={product.id}>
+                                      {product.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            
+                            <div>
+                              <Select
+                                value={item.variant_id}
+                                onValueChange={(value) => updateBulkOrderItem(orderIndex, itemIndex, 'variant_id', value)}
+                                disabled={!item.product_id}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Variant" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {products
+                                    .find(p => p.id === item.product_id)
+                                    ?.variants?.map((variant) => (
+                                      <SelectItem key={variant.id} value={variant.id}>
+                                        {variant.size} - {variant.color} (LKR {variant.price.toFixed(2)})
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            
+                            <div>
+                              <Input
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => updateBulkOrderItem(orderIndex, itemIndex, 'quantity', parseInt(e.target.value) || 1)}
+                                placeholder="Qty"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkCreateDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleBulkCreateOrders} className="bg-gradient-to-r from-purple-600 to-indigo-600">
+              Create {bulkOrders.length} Orders
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Status Change Dialog */}
+      <Dialog open={showBulkStatusDialog} onOpenChange={setShowBulkStatusDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Order Status</DialogTitle>
+            <DialogDescription>
+              Update status for {selectedOrders.length} selected orders.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="bulk-status">New Status</Label>
+              <Select 
+                value={bulkStatusData.status} 
+                onValueChange={(value) => setBulkStatusData({...bulkStatusData, status: value})}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="on_courier">On Courier</SelectItem>
+                  <SelectItem value="delivered">Delivered</SelectItem>
+                  <SelectItem value="returned">Returned</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(bulkStatusData.status === 'on_courier' || bulkStatusData.status === 'delivered') && (
+              <div>
+                <Label htmlFor="bulk-tracking">Waybill/Tracking Number</Label>
+                <Input
+                  id="bulk-tracking"
+                  value={bulkStatusData.tracking_number}
+                  onChange={(e) => setBulkStatusData({...bulkStatusData, tracking_number: e.target.value})}
+                  placeholder="Enter tracking number"
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkStatusDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleBulkStatusChange} className="bg-gradient-to-r from-blue-600 to-indigo-600">
+              Update {selectedOrders.length} Orders
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
