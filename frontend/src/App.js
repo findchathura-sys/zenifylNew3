@@ -1419,6 +1419,14 @@ const Orders = () => {
           {selectedOrders.length > 0 && (
             <>
               <Button 
+                onClick={handleExportCSV} 
+                variant="outline" 
+                className="border-green-300 text-green-700 hover:bg-green-50"
+              >
+                <Download size={20} className="mr-2" />
+                Export CSV ({selectedOrders.length})
+              </Button>
+              <Button 
                 onClick={() => setShowBulkStatusDialog(true)} 
                 variant="outline" 
                 className="border-blue-300 text-blue-700 hover:bg-blue-50"
