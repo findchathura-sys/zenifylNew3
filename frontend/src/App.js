@@ -694,13 +694,35 @@ const Inventory = () => {
                       </div>
                       
                       <div>
-                        <Label>Price (LKR)</Label>
+                        <Label>Sell Price (LKR)</Label>
                         <Input
                           type="number"
                           step="0.01"
                           value={variant.price}
                           onChange={(e) => updateVariant(index, 'price', parseFloat(e.target.value) || 0)}
                           placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                      <div>
+                        <Label>Buy Price (LKR) - Optional</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={variant.buy_price || ''}
+                          onChange={(e) => updateVariant(index, 'buy_price', parseFloat(e.target.value) || null)}
+                          placeholder="Cost price for profit calculation"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label>Purchase Date - Optional</Label>
+                        <Input
+                          type="date"
+                          value={variant.purchase_date ? new Date(variant.purchase_date).toISOString().split('T')[0] : ''}
+                          onChange={(e) => updateVariant(index, 'purchase_date', e.target.value ? new Date(e.target.value).toISOString() : null)}
                         />
                       </div>
                     </div>
