@@ -7,7 +7,6 @@ import {
   Users, 
   ShoppingCart, 
   DollarSign, 
-  Settings, 
   Home,
   AlertTriangle,
   Printer,
