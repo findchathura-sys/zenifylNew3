@@ -747,6 +747,7 @@ const Customers = () => {
     name: '',
     email: '',
     phone: '',
+    phone_2: '',
     address: '',
     city: '',
     postal_code: ''
