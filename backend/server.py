@@ -277,6 +277,74 @@ async def get_orders():
     orders = await db.orders.find().to_list(1000)
     return [Order(**parse_from_mongo(order)) for order in orders]
 
+@api_router.get("/orders/{order_id}", response_model=Order)
+async def get_order(order_id: str):
+    order = await db.orders.find_one({"id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return Order(**parse_from_mongo(order))
+
+@api_router.post("/orders/export-csv")
+async def export_orders_csv(order_ids: List[str]):
+    try:
+        import csv
+        import io
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write CSV headers
+        headers = [
+            "Waybill Number", "Order Number", "Customer Name", "Address", 
+            "Order Description", "Customer First Phone No", "Customer Second Phone No",
+            "COD Amount", "City", "Remarks"
+        ]
+        writer.writerow(headers)
+        
+        # Fetch orders and write data
+        for order_id in order_ids:
+            order = await db.orders.find_one({"id": order_id})
+            if order:
+                order_obj = Order(**parse_from_mongo(order))
+                
+                # Create order description from items
+                order_description = "; ".join([
+                    f"{item.product_name} ({item.size}, {item.color}) x{item.quantity}" 
+                    for item in order_obj.items
+                ])
+                
+                # Extract city from address
+                address_parts = order_obj.customer_address.split(", ")
+                city = address_parts[-2] if len(address_parts) >= 2 else order_obj.customer_city if hasattr(order_obj, 'customer_city') else ""
+                
+                row = [
+                    order_obj.tracking_number or "",
+                    order_obj.order_number or "",
+                    order_obj.customer_name or "",
+                    order_obj.customer_address or "",
+                    order_description,
+                    order_obj.customer_phone or "",
+                    order_obj.customer_phone_2 or "",
+                    order_obj.cod_amount or order_obj.total_amount,
+                    city,
+                    order_obj.remarks or ""
+                ]
+                writer.writerow(row)
+        
+        output.seek(0)
+        csv_content = output.getvalue()
+        output.close()
+        
+        from fastapi.responses import Response
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=orders_export.csv"}
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
 @api_router.put("/orders/{order_id}", response_model=Order)
 async def update_order(order_id: str, order: Order):
     existing_order = await db.orders.find_one({"id": order_id})
