@@ -792,16 +792,453 @@ const Customers = () => {
   );
 };
 
-const Orders = () => (
-  <div className="p-6">
-    <h1 className="text-3xl font-bold mb-6">Order Management</h1>
-    <Card>
-      <CardContent className="p-6">
-        <p className="text-slate-600">Order management functionality coming soon...</p>
-      </CardContent>
-    </Card>
-  </div>
-);
+// Orders Management Component
+const Orders = () => {
+  const [orders, setOrders] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [selectedOrders, setSelectedOrders] = useState([]);
+
+  const [newOrder, setNewOrder] = useState({
+    customer_id: '',
+    items: [{ product_id: '', variant_id: '', quantity: 1 }],
+    tax_rate: 0
+  });
+
+  useEffect(() => {
+    fetchOrders();
+    fetchProducts();
+    fetchCustomers();
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      const response = await axios.get(`${API}/orders`);
+      setOrders(response.data);
+    } catch (error) {
+      toast.error("Failed to fetch orders");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const response = await axios.get(`${API}/products`);
+      setProducts(response.data);
+    } catch (error) {
+      console.error("Failed to fetch products");
+    }
+  };
+
+  const fetchCustomers = async () => {
+    try {
+      const response = await axios.get(`${API}/customers`);
+      setCustomers(response.data);
+    } catch (error) {
+      console.error("Failed to fetch customers");
+    }
+  };
+
+  const handleCreateOrder = async () => {
+    try {
+      const customer = customers.find(c => c.id === newOrder.customer_id);
+      if (!customer) {
+        toast.error("Please select a customer");
+        return;
+      }
+
+      const orderItems = [];
+      let subtotal = 0;
+
+      for (const item of newOrder.items) {
+        const product = products.find(p => p.id === item.product_id);
+        const variant = product?.variants?.find(v => v.id === item.variant_id);
+        
+        if (!product || !variant) {
+          toast.error("Invalid product or variant selected");
+          return;
+        }
+
+        const totalPrice = variant.price * item.quantity;
+        subtotal += totalPrice;
+
+        orderItems.push({
+          product_id: product.id,
+          variant_id: variant.id,
+          product_name: product.name,
+          size: variant.size,
+          color: variant.color,
+          quantity: item.quantity,
+          unit_price: variant.price,
+          total_price: totalPrice
+        });
+      }
+
+      const taxAmount = subtotal * (newOrder.tax_rate / 100);
+      const totalAmount = subtotal + taxAmount;
+
+      const orderData = {
+        customer_id: customer.id,
+        customer_name: customer.name,
+        customer_address: `${customer.address}, ${customer.city}, ${customer.postal_code}`,
+        customer_phone: customer.phone,
+        items: orderItems,
+        subtotal,
+        tax_amount: taxAmount,
+        total_amount: totalAmount
+      };
+
+      await axios.post(`${API}/orders`, orderData);
+      toast.success("Order created successfully");
+      setShowAddDialog(false);
+      setNewOrder({
+        customer_id: '',
+        items: [{ product_id: '', variant_id: '', quantity: 1 }],
+        tax_rate: 0
+      });
+      fetchOrders();
+    } catch (error) {
+      toast.error("Failed to create order");
+    }
+  };
+
+  const updateOrderStatus = async (orderId, status, trackingNumber = '') => {
+    try {
+      await axios.put(`${API}/orders/${orderId}/status`, null, {
+        params: { status, tracking_number: trackingNumber || undefined }
+      });
+      toast.success("Order status updated");
+      fetchOrders();
+    } catch (error) {
+      toast.error("Failed to update order status");
+    }
+  };
+
+  const handleBulkPrintLabels = () => {
+    if (selectedOrders.length === 0) {
+      toast.error("Please select orders to print labels");
+      return;
+    }
+
+    const url = `${API}/orders/bulk-labels`;
+    const newWindow = window.open();
+    
+    axios.post(url, selectedOrders)
+      .then(response => {
+        newWindow.document.write(response.data);
+        newWindow.document.close();
+        setTimeout(() => {
+          newWindow.print();
+        }, 500);
+      })
+      .catch(error => {
+        toast.error("Failed to generate labels");
+        newWindow.close();
+      });
+  };
+
+  const addOrderItem = () => {
+    setNewOrder({
+      ...newOrder,
+      items: [...newOrder.items, { product_id: '', variant_id: '', quantity: 1 }]
+    });
+  };
+
+  const updateOrderItem = (index, field, value) => {
+    const updatedItems = [...newOrder.items];
+    updatedItems[index][field] = value;
+    
+    // Reset variant_id when product changes
+    if (field === 'product_id') {
+      updatedItems[index].variant_id = '';
+    }
+    
+    setNewOrder({ ...newOrder, items: updatedItems });
+  };
+
+  const removeOrderItem = (index) => {
+    const updatedItems = newOrder.items.filter((_, i) => i !== index);
+    setNewOrder({ ...newOrder, items: updatedItems });
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'on_courier': return 'bg-blue-100 text-blue-800';
+      case 'delivered': return 'bg-green-100 text-green-800';
+      case 'returned': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  if (loading) return <div className="p-6">Loading orders...</div>;
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-slate-800">Order Management</h1>
+        <div className="flex space-x-3">
+          {selectedOrders.length > 0 && (
+            <Button onClick={handleBulkPrintLabels} variant="outline" className="border-orange-300 text-orange-700 hover:bg-orange-50">
+              <Printer size={20} className="mr-2" />
+              Print Labels ({selectedOrders.length})
+            </Button>
+          )}
+          <Button onClick={() => setShowAddDialog(true)} className="bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700">
+            <Plus size={20} className="mr-2" />
+            Create Order
+          </Button>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {orders.map((order) => (
+          <Card key={order.id} className="hover:shadow-lg transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-4">
+                  <input
+                    type="checkbox"
+                    checked={selectedOrders.includes(order.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedOrders([...selectedOrders, order.id]);
+                      } else {
+                        setSelectedOrders(selectedOrders.filter(id => id !== order.id));
+                      }
+                    }}
+                    className="w-4 h-4"
+                  />
+                  <div>
+                    <h3 className="font-semibold text-lg">{order.order_number}</h3>
+                    <p className="text-slate-600">{order.customer_name}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <Badge className={getStatusColor(order.status)}>
+                    {order.status.replace('_', ' ').toUpperCase()}
+                  </Badge>
+                  <span className="font-semibold text-lg">LKR {order.total_amount.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <h4 className="font-medium mb-2">Items:</h4>
+                  <div className="space-y-1">
+                    {order.items.map((item, index) => (
+                      <div key={index} className="text-sm text-slate-600">
+                        {item.product_name} ({item.size}, {item.color}) x{item.quantity}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">Details:</h4>
+                  <div className="text-sm text-slate-600 space-y-1">
+                    <div><strong>Phone:</strong> {order.customer_phone}</div>
+                    <div><strong>Address:</strong> {order.customer_address}</div>
+                    {order.tracking_number && (
+                      <div><strong>Tracking:</strong> {order.tracking_number}</div>
+                    )}
+                    <div><strong>Date:</strong> {new Date(order.created_at).toLocaleDateString()}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t">
+                <div className="text-sm text-slate-500">
+                  Subtotal: LKR {order.subtotal.toFixed(2)} + Tax: LKR {order.tax_amount.toFixed(2)}
+                </div>
+                <div className="flex space-x-2">
+                  {order.status === 'pending' && (
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => {
+                        const trackingNumber = prompt("Enter tracking number:");
+                        if (trackingNumber) {
+                          updateOrderStatus(order.id, 'on_courier', trackingNumber);
+                        }
+                      }}
+                    >
+                      Ship Order
+                    </Button>
+                  )}
+                  {order.status === 'on_courier' && (
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => updateOrderStatus(order.id, 'delivered')}
+                    >
+                      Mark Delivered
+                    </Button>
+                  )}
+                  {(order.status === 'delivered' || order.status === 'on_courier') && (
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      className="text-red-600"
+                      onClick={() => updateOrderStatus(order.id, 'returned')}
+                    >
+                      Mark Returned
+                    </Button>
+                  )}
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => window.open(`${API}/orders/${order.id}/shipping-label`, '_blank')}
+                  >
+                    <Printer size={16} className="mr-1" />
+                    Label
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Create Order Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Order</DialogTitle>
+            <DialogDescription>
+              Create a new order for a customer with multiple items.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            <div>
+              <Label htmlFor="customer-select">Select Customer</Label>
+              <Select value={newOrder.customer_id} onValueChange={(value) => setNewOrder({...newOrder, customer_id: value})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a customer" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.map((customer) => (
+                    <SelectItem key={customer.id} value={customer.id}>
+                      {customer.name} - {customer.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <Label>Order Items</Label>
+                <Button type="button" onClick={addOrderItem} variant="outline" size="sm">
+                  <Plus size={16} className="mr-2" />
+                  Add Item
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                {newOrder.items.map((item, index) => (
+                  <div key={index} className="p-4 border rounded-lg bg-slate-50">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium">Item {index + 1}</h4>
+                      {newOrder.items.length > 1 && (
+                        <Button
+                          type="button"
+                          onClick={() => removeOrderItem(index)}
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600"
+                        >
+                          <Trash2 size={16} />
+                        </Button>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <Label>Product</Label>
+                        <Select
+                          value={item.product_id}
+                          onValueChange={(value) => updateOrderItem(index, 'product_id', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select product" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {products.map((product) => (
+                              <SelectItem key={product.id} value={product.id}>
+                                {product.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div>
+                        <Label>Variant</Label>
+                        <Select
+                          value={item.variant_id}
+                          onValueChange={(value) => updateOrderItem(index, 'variant_id', value)}
+                          disabled={!item.product_id}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select variant" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {products
+                              .find(p => p.id === item.product_id)
+                              ?.variants?.map((variant) => (
+                                <SelectItem key={variant.id} value={variant.id}>
+                                  {variant.size} - {variant.color} (LKR {variant.price.toFixed(2)})
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div>
+                        <Label>Quantity</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateOrderItem(index, 'quantity', parseInt(e.target.value) || 1)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="tax-rate">Tax Rate (%)</Label>
+              <Input
+                id="tax-rate"
+                type="number"
+                step="0.01"
+                value={newOrder.tax_rate}
+                onChange={(e) => setNewOrder({...newOrder, tax_rate: parseFloat(e.target.value) || 0})}
+                placeholder="0"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateOrder} className="bg-gradient-to-r from-emerald-600 to-cyan-600">
+              Create Order
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
 
 const Finance = () => (
   <div className="p-6">
