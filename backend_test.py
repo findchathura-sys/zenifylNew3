@@ -916,6 +916,327 @@ class ClothierPOSAPITester:
                                         params={'status': 'pending', 'tracking_number': ''})
             self.log_test("Empty Tracking Number", success, "- Handles empty tracking numbers")
 
+    def test_enhancement_1_customer_second_phone(self):
+        """Test ENHANCEMENT 1: Customer Second Phone Number"""
+        print("\n📞 Testing ENHANCEMENT 1: Customer Second Phone Number...")
+        
+        # Test 1: Create customer with second phone
+        customer_data = {
+            "name": "Test Customer with Second Phone",
+            "email": "secondphone@example.com",
+            "phone": "+94 71 123 4567",
+            "phone_2": "+94 77 987 6543",  # Second phone number
+            "address": "123 Test Street",
+            "city": "Colombo",
+            "postal_code": "00100"
+        }
+        
+        success, customer = self.run_api_test('POST', 'customers', 200, customer_data)
+        if success and 'id' in customer:
+            self.created_items['customers'].append(customer['id'])
+            
+            # Verify second phone is stored
+            has_second_phone = customer.get('phone_2') == "+94 77 987 6543"
+            self.log_test("Create Customer with Second Phone", has_second_phone,
+                         f"- Phone 1: {customer.get('phone')}, Phone 2: {customer.get('phone_2')}")
+            
+            # Test 2: Retrieve customer and verify both phones
+            success, retrieved_customer = self.run_api_test('GET', f"customers/{customer['id']}", 200)
+            if success:
+                both_phones_present = (retrieved_customer.get('phone') == "+94 71 123 4567" and 
+                                     retrieved_customer.get('phone_2') == "+94 77 987 6543")
+                self.log_test("Retrieve Customer with Both Phones", both_phones_present,
+                             f"- Both phone numbers correctly stored and retrieved")
+            
+            # Test 3: Update customer to remove second phone
+            customer_data['phone_2'] = None
+            success, updated_customer = self.run_api_test('PUT', f"customers/{customer['id']}", 200, customer_data)
+            if success:
+                second_phone_removed = updated_customer.get('phone_2') is None
+                self.log_test("Remove Second Phone via Update", second_phone_removed,
+                             f"- Second phone successfully removed")
+            
+            # Test 4: Update customer to add second phone back
+            customer_data['phone_2'] = "+94 76 555 1234"
+            success, updated_customer = self.run_api_test('PUT', f"customers/{customer['id']}", 200, customer_data)
+            if success:
+                second_phone_added = updated_customer.get('phone_2') == "+94 76 555 1234"
+                self.log_test("Add Second Phone via Update", second_phone_added,
+                             f"- Second phone successfully added back")
+        else:
+            self.log_test("Create Customer with Second Phone", False, "- Failed to create customer")
+        
+        # Test 5: Create customer without second phone (should work)
+        customer_no_phone2 = {
+            "name": "Customer Without Second Phone",
+            "email": "nophone2@example.com", 
+            "phone": "+94 71 999 8888",
+            "address": "456 No Phone Street",
+            "city": "Kandy",
+            "postal_code": "20000"
+        }
+        
+        success, customer = self.run_api_test('POST', 'customers', 200, customer_no_phone2)
+        if success:
+            self.created_items['customers'].append(customer['id'])
+            no_second_phone = customer.get('phone_2') is None
+            self.log_test("Create Customer without Second Phone", no_second_phone,
+                         f"- Customer created successfully without second phone")
+
+    def test_enhancement_2_order_status_no_tracking_prompt(self):
+        """Test ENHANCEMENT 2: Order Status Change Without Tracking Prompt"""
+        print("\n🚚 Testing ENHANCEMENT 2: Order Status Change Without Tracking Prompt...")
+        
+        # Create test data
+        product_data = {
+            "name": "Status Test Product",
+            "description": "Product for status testing",
+            "category": "Test",
+            "variants": [{
+                "size": "M", "color": "Blue", "sku": "STATUS-M-BLU",
+                "stock_quantity": 10, "price": 1000.00
+            }]
+        }
+        
+        success, product = self.run_api_test('POST', 'products', 200, product_data)
+        if not success:
+            return self.log_test("Status Test Setup", False, "- Cannot create test product")
+        
+        customer_data = {
+            "name": "Status Test Customer", "email": "status@example.com",
+            "phone": "+94 71 111 2222", "address": "Status Street",
+            "city": "Colombo", "postal_code": "00100"
+        }
+        
+        success, customer = self.run_api_test('POST', 'customers', 200, customer_data)
+        if not success:
+            return self.log_test("Status Test Setup", False, "- Cannot create test customer")
+        
+        # Create test order
+        variant = product['variants'][0]
+        order_data = {
+            "customer_id": customer['id'],
+            "customer_name": customer['name'],
+            "customer_address": f"{customer['address']}, {customer['city']}, {customer['postal_code']}",
+            "customer_phone": customer['phone'],
+            "items": [{
+                "product_id": product['id'], "variant_id": variant['id'],
+                "product_name": product['name'], "size": variant['size'],
+                "color": variant['color'], "quantity": 1,
+                "unit_price": variant['price'], "total_price": variant['price']
+            }],
+            "subtotal": variant['price'],
+            "tax_amount": 0, "total_amount": variant['price']
+        }
+        
+        success, order = self.run_api_test('POST', 'orders', 200, order_data)
+        if not success:
+            return self.log_test("Status Test Setup", False, "- Cannot create test order")
+        
+        self.created_items['orders'].append(order['id'])
+        
+        # Test 1: Change status to on_courier WITHOUT tracking number
+        success, response = self.run_api_test('PUT', f"orders/{order['id']}/status", 200,
+                                            params={'status': 'on_courier'})
+        if success:
+            # Verify order status changed
+            success, updated_order = self.run_api_test('GET', f"orders/{order['id']}", 200)
+            if success:
+                status_changed = updated_order.get('status') == 'on_courier'
+                self.log_test("Status Change to On Courier (No Tracking)", status_changed,
+                             f"- Status: {updated_order.get('status')}")
+        
+        # Test 2: Change status to on_courier WITH tracking number
+        success, response = self.run_api_test('PUT', f"orders/{order['id']}/status", 200,
+                                            params={'status': 'on_courier', 'tracking_number': 'TRK123456'})
+        if success:
+            success, updated_order = self.run_api_test('GET', f"orders/{order['id']}", 200)
+            if success:
+                status_changed = updated_order.get('status') == 'on_courier'
+                tracking_added = updated_order.get('tracking_number') == 'TRK123456'
+                self.log_test("Status Change to On Courier (With Tracking)", status_changed and tracking_added,
+                             f"- Status: {updated_order.get('status')}, Tracking: {updated_order.get('tracking_number')}")
+        
+        # Test 3: Test other status transitions
+        for status in ['delivered', 'returned', 'pending']:
+            success, response = self.run_api_test('PUT', f"orders/{order['id']}/status", 200,
+                                                params={'status': status})
+            if success:
+                success, updated_order = self.run_api_test('GET', f"orders/{order['id']}", 200)
+                if success:
+                    status_changed = updated_order.get('status') == status
+                    self.log_test(f"Status Change to {status.title()}", status_changed,
+                                 f"- Status: {updated_order.get('status')}")
+        
+        # Cleanup
+        self.run_api_test('DELETE', f"products/{product['id']}", 200)
+
+    def test_enhancement_3_finance_with_buy_prices(self):
+        """Test ENHANCEMENT 3: Enhanced Finance Reports with Buy Price Data"""
+        print("\n💰 Testing ENHANCEMENT 3: Enhanced Finance Reports with Buy Price Data...")
+        
+        # Test 1: Create product with buy prices and purchase dates
+        product_with_costs = {
+            "name": "Cost Analysis Product",
+            "description": "Product with buy price data",
+            "category": "Cost Test",
+            "variants": [
+                {
+                    "size": "M", "color": "Blue", "sku": "COST-M-BLU",
+                    "stock_quantity": 20, "price": 2000.00,
+                    "buy_price": 1200.00,  # Buy price for profit calculation
+                    "purchase_date": "2024-01-15T00:00:00Z"  # Purchase date
+                },
+                {
+                    "size": "L", "color": "Red", "sku": "COST-L-RED", 
+                    "stock_quantity": 15, "price": 2200.00,
+                    "buy_price": 1300.00,
+                    "purchase_date": "2024-01-20T00:00:00Z"
+                }
+            ]
+        }
+        
+        success, product = self.run_api_test('POST', 'products', 200, product_with_costs)
+        if success:
+            # Verify buy prices and purchase dates are stored
+            variant1 = product['variants'][0]
+            variant2 = product['variants'][1]
+            
+            buy_prices_stored = (variant1.get('buy_price') == 1200.00 and 
+                               variant2.get('buy_price') == 1300.00)
+            purchase_dates_stored = (variant1.get('purchase_date') is not None and
+                                   variant2.get('purchase_date') is not None)
+            
+            self.log_test("Product with Buy Prices and Purchase Dates", buy_prices_stored and purchase_dates_stored,
+                         f"- Variant 1 buy price: {variant1.get('buy_price')}, Variant 2 buy price: {variant2.get('buy_price')}")
+        else:
+            return self.log_test("Cost Analysis Setup", False, "- Cannot create product with buy prices")
+        
+        # Test 2: Create product without buy prices (for mixed scenario)
+        product_no_costs = {
+            "name": "No Cost Data Product",
+            "description": "Product without buy price data",
+            "category": "No Cost Test",
+            "variants": [{
+                "size": "S", "color": "Green", "sku": "NOCOST-S-GRN",
+                "stock_quantity": 10, "price": 1500.00
+                # No buy_price or purchase_date
+            }]
+        }
+        
+        success, product_no_cost = self.run_api_test('POST', 'products', 200, product_no_costs)
+        if not success:
+            return self.log_test("Mixed Cost Analysis Setup", False, "- Cannot create product without buy prices")
+        
+        # Create test customer
+        customer_data = {
+            "name": "Cost Analysis Customer", "email": "cost@example.com",
+            "phone": "+94 71 333 4444", "address": "Cost Street",
+            "city": "Colombo", "postal_code": "00100"
+        }
+        
+        success, customer = self.run_api_test('POST', 'customers', 200, customer_data)
+        if not success:
+            return self.log_test("Cost Analysis Setup", False, "- Cannot create test customer")
+        
+        # Test 3: Create orders with products that have buy prices
+        variant_with_cost = product['variants'][0]  # Has buy price 1200, sell price 2000
+        order_with_cost = {
+            "customer_id": customer['id'],
+            "customer_name": customer['name'],
+            "customer_address": f"{customer['address']}, {customer['city']}, {customer['postal_code']}",
+            "customer_phone": customer['phone'],
+            "items": [{
+                "product_id": product['id'], "variant_id": variant_with_cost['id'],
+                "product_name": product['name'], "size": variant_with_cost['size'],
+                "color": variant_with_cost['color'], "quantity": 2,
+                "unit_price": variant_with_cost['price'], 
+                "total_price": variant_with_cost['price'] * 2
+            }],
+            "subtotal": variant_with_cost['price'] * 2,
+            "tax_amount": 0, "total_amount": variant_with_cost['price'] * 2
+        }
+        
+        success, order1 = self.run_api_test('POST', 'orders', 200, order_with_cost)
+        if success:
+            self.created_items['orders'].append(order1['id'])
+        
+        # Test 4: Create order with product that has no buy price
+        variant_no_cost = product_no_cost['variants'][0]
+        order_no_cost = {
+            "customer_id": customer['id'],
+            "customer_name": customer['name'],
+            "customer_address": f"{customer['address']}, {customer['city']}, {customer['postal_code']}",
+            "customer_phone": customer['phone'],
+            "items": [{
+                "product_id": product_no_cost['id'], "variant_id": variant_no_cost['id'],
+                "product_name": product_no_cost['name'], "size": variant_no_cost['size'],
+                "color": variant_no_cost['color'], "quantity": 1,
+                "unit_price": variant_no_cost['price'],
+                "total_price": variant_no_cost['price']
+            }],
+            "subtotal": variant_no_cost['price'],
+            "tax_amount": 0, "total_amount": variant_no_cost['price']
+        }
+        
+        success, order2 = self.run_api_test('POST', 'orders', 200, order_no_cost)
+        if success:
+            self.created_items['orders'].append(order2['id'])
+        
+        # Test 5: Test enhanced profit/loss calculation
+        start_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        
+        success, profit_data = self.run_api_test('GET', 'finance/profit-loss', 200,
+                                               params={'start_date': start_date, 'end_date': end_date})
+        
+        if success and isinstance(profit_data, dict):
+            # Check for enhanced fields
+            enhanced_fields = ['actual_cost', 'estimated_cost', 'cost_data_coverage', 
+                             'items_with_actual_cost', 'total_items_sold']
+            has_enhanced_fields = all(field in profit_data for field in enhanced_fields)
+            
+            self.log_test("Enhanced Profit/Loss Fields", has_enhanced_fields,
+                         f"- Fields present: {list(profit_data.keys())}")
+            
+            if has_enhanced_fields:
+                # Verify calculations
+                total_revenue = profit_data.get('total_revenue', 0)
+                actual_cost = profit_data.get('actual_cost', 0)
+                estimated_cost = profit_data.get('estimated_cost', 0)
+                total_cost = profit_data.get('total_cost', 0)
+                cost_coverage = profit_data.get('cost_data_coverage', 0)
+                items_with_cost = profit_data.get('items_with_actual_cost', 0)
+                total_items = profit_data.get('total_items_sold', 0)
+                
+                # Expected: 2 items with actual cost (buy price 1200 each = 2400 total actual cost)
+                # Expected: 1 item with estimated cost (60% of 1500 = 900 estimated cost)
+                # Expected: 3 total items, 2 with actual cost = 66.67% coverage
+                
+                calculations_correct = (
+                    total_cost == actual_cost + estimated_cost and
+                    cost_coverage > 0 and cost_coverage <= 100 and
+                    items_with_cost >= 0 and total_items >= items_with_cost
+                )
+                
+                self.log_test("Enhanced Cost Calculations", calculations_correct,
+                             f"- Revenue: {total_revenue}, Actual Cost: {actual_cost}, " +
+                             f"Estimated Cost: {estimated_cost}, Coverage: {cost_coverage:.1f}%")
+                
+                # Test cost data coverage percentage
+                if total_items > 0:
+                    expected_coverage = (items_with_cost / total_items) * 100
+                    coverage_accurate = abs(cost_coverage - expected_coverage) < 0.1
+                    
+                    self.log_test("Cost Data Coverage Calculation", coverage_accurate,
+                                 f"- Expected: {expected_coverage:.1f}%, Actual: {cost_coverage:.1f}%")
+        else:
+            self.log_test("Enhanced Profit/Loss Report", False, "- Failed to get profit/loss data")
+        
+        # Cleanup
+        self.run_api_test('DELETE', f"products/{product['id']}", 200)
+        self.run_api_test('DELETE', f"products/{product_no_cost['id']}", 200)
+
     def run_all_tests(self):
         """Run all tests in sequence"""
         print("🚀 Starting ClothierPOS Enhanced API Tests...")
@@ -933,13 +1254,26 @@ class ClothierPOSAPITester:
         
         print("✅ API connectivity confirmed")
         
-        # Run all test suites
+        # Run specific enhancement tests first
+        print("\n" + "="*60)
+        print("TESTING THE THREE SPECIFIC ENHANCEMENTS")
+        print("="*60)
+        
+        self.test_enhancement_1_customer_second_phone()
+        self.test_enhancement_2_order_status_no_tracking_prompt()
+        self.test_enhancement_3_finance_with_buy_prices()
+        
+        print("\n" + "="*60)
+        print("TESTING GENERAL FUNCTIONALITY")
+        print("="*60)
+        
+        # Run general test suites
         self.test_dashboard()
         self.test_products_crud()
         self.test_customers_crud()
         self.test_orders_workflow()
-        self.test_enhanced_order_features()  # NEW: Test enhanced features
-        self.test_order_validation_and_error_handling()  # NEW: Test validation
+        self.test_enhanced_order_features()
+        self.test_order_validation_and_error_handling()
         self.test_shipping_labels()
         self.test_finance_reports()
         self.test_settings()
