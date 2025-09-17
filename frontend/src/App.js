@@ -799,12 +799,32 @@ const Orders = () => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showBulkCreateDialog, setShowBulkCreateDialog] = useState(false);
+  const [showBulkStatusDialog, setShowBulkStatusDialog] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState([]);
+  const [sortBy, setSortBy] = useState('newest');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [ordersPerPage] = useState(20);
 
   const [newOrder, setNewOrder] = useState({
     customer_id: '',
     items: [{ product_id: '', variant_id: '', quantity: 1 }],
-    tax_rate: 0
+    tax_rate: 0,
+    tracking_number: ''
+  });
+
+  const [bulkOrders, setBulkOrders] = useState([
+    {
+      customer_id: '',
+      items: [{ product_id: '', variant_id: '', quantity: 1 }],
+      tax_rate: 0,
+      tracking_number: ''
+    }
+  ]);
+
+  const [bulkStatusData, setBulkStatusData] = useState({
+    status: 'on_courier',
+    tracking_number: ''
   });
 
   useEffect(() => {
