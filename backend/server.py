@@ -277,12 +277,40 @@ async def get_orders():
     orders = await db.orders.find().to_list(1000)
     return [Order(**parse_from_mongo(order)) for order in orders]
 
-@api_router.get("/orders/{order_id}", response_model=Order)
-async def get_order(order_id: str):
-    order = await db.orders.find_one({"id": order_id})
-    if not order:
+@api_router.put("/orders/{order_id}", response_model=Order)
+async def update_order(order_id: str, order: Order):
+    existing_order = await db.orders.find_one({"id": order_id})
+    if not existing_order:
         raise HTTPException(status_code=404, detail="Order not found")
-    return Order(**parse_from_mongo(order))
+    
+    order.updated_at = datetime.now(timezone.utc)
+    order_dict = prepare_for_mongo(order.dict())
+    await db.orders.update_one({"id": order_id}, {"$set": order_dict})
+    return order
+
+@api_router.delete("/orders/{order_id}")
+async def delete_order(order_id: str):
+    existing_order = await db.orders.find_one({"id": order_id})
+    if not existing_order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    order_obj = Order(**parse_from_mongo(existing_order))
+    
+    # Restore stock quantities when deleting order
+    for item in order_obj.items:
+        product = await db.products.find_one({"id": item.product_id})
+        if product:
+            product_obj = Product(**parse_from_mongo(product))
+            for variant in product_obj.variants:
+                if variant.id == item.variant_id:
+                    variant.stock_quantity += item.quantity
+                    break
+            
+            product_dict = prepare_for_mongo(product_obj.dict())
+            await db.products.update_one({"id": item.product_id}, {"$set": product_dict})
+    
+    await db.orders.delete_one({"id": order_id})
+    return {"message": "Order deleted successfully"}
 
 @api_router.put("/orders/{order_id}/status")
 async def update_order_status(order_id: str, status: OrderStatus, tracking_number: Optional[str] = None):
