@@ -1543,25 +1543,56 @@ const Orders = () => {
                       </div>
                     ))}
                   </div>
+                  {order.remarks && (
+                    <div className="mt-2">
+                      <h4 className="font-medium text-sm">Remarks:</h4>
+                      <p className="text-sm text-slate-600">{order.remarks}</p>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <h4 className="font-medium mb-2">Details:</h4>
                   <div className="text-sm text-slate-600 space-y-1">
                     <div><strong>Phone:</strong> {order.customer_phone}</div>
+                    {order.customer_phone_2 && (
+                      <div><strong>Phone 2:</strong> {order.customer_phone_2}</div>
+                    )}
                     <div><strong>Address:</strong> {order.customer_address}</div>
                     {order.tracking_number && (
                       <div><strong>Tracking:</strong> {order.tracking_number}</div>
                     )}
                     <div><strong>Date:</strong> {new Date(order.created_at).toLocaleDateString()}</div>
+                    {order.cod_amount && (
+                      <div><strong>COD Amount:</strong> LKR {order.cod_amount.toFixed(2)}</div>
+                    )}
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center justify-between pt-4 border-t">
-                <div className="text-sm text-slate-500">
-                  Subtotal: LKR {order.subtotal.toFixed(2)} + Tax: LKR {order.tax_amount.toFixed(2)}
+                <div className="text-sm text-slate-500 space-y-1">
+                  <div>Subtotal: LKR {order.subtotal.toFixed(2)} + Tax: LKR {order.tax_amount.toFixed(2)}</div>
+                  <div>Courier: LKR {(order.courier_charges || 0).toFixed(2)} - Discount: LKR {(order.discount_amount || 0).toFixed(2)}</div>
                 </div>
                 <div className="flex space-x-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => handleEditOrder(order)}
+                    className="text-blue-600"
+                  >
+                    <Edit size={16} className="mr-1" />
+                    Edit
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => handleDeleteOrder(order.id)}
+                    className="text-red-600"
+                  >
+                    <Trash2 size={16} className="mr-1" />
+                    Delete
+                  </Button>
                   {order.status === 'pending' && (
                     <Button 
                       size="sm" 
