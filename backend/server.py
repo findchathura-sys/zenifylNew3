@@ -430,17 +430,17 @@ async def get_shipping_label(order_id: str):
     order_items_html += "</ul>"
     
     html_content = settings_obj.shipping_label_template
-    html_content = html_content.replace("{{business_name}}", settings_obj.business_name)
-    html_content = html_content.replace("{{business_address}}", settings_obj.address)
-    html_content = html_content.replace("{{business_phone}}", settings_obj.phone)
-    html_content = html_content.replace("{{customer_name}}", order_obj.customer_name)
-    html_content = html_content.replace("{{customer_address}}", order_obj.customer_address)
-    html_content = html_content.replace("{{customer_phone}}", order_obj.customer_phone)
-    html_content = html_content.replace("{{order_number}}", order_obj.order_number)
+    html_content = html_content.replace("{{business_name}}", settings_obj.business_name or "")
+    html_content = html_content.replace("{{business_address}}", settings_obj.address or "")
+    html_content = html_content.replace("{{business_phone}}", settings_obj.phone or "")
+    html_content = html_content.replace("{{customer_name}}", order_obj.customer_name or "")
+    html_content = html_content.replace("{{customer_address}}", order_obj.customer_address or "")
+    html_content = html_content.replace("{{customer_phone}}", order_obj.customer_phone or "")
+    html_content = html_content.replace("{{order_number}}", order_obj.order_number or "TBD")
     html_content = html_content.replace("{{tracking_number}}", order_obj.tracking_number or "TBD")
-    html_content = html_content.replace("{{order_date}}", order_obj.created_at.strftime("%Y-%m-%d"))
+    html_content = html_content.replace("{{order_date}}", order_obj.created_at.strftime("%Y-%m-%d") if order_obj.created_at else "")
     html_content = html_content.replace("{{order_items}}", order_items_html)
-    html_content = html_content.replace("{{total_amount}}", f"{order_obj.total_amount:.2f}")
+    html_content = html_content.replace("{{total_amount}}", f"{order_obj.total_amount:.2f}" if order_obj.total_amount else "0.00")
     
     return HTMLResponse(content=html_content)
 
