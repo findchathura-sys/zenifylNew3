@@ -1518,6 +1518,16 @@ const Orders = () => {
                 placeholder="0"
               />
             </div>
+
+            <div>
+              <Label htmlFor="tracking-number">Waybill/Tracking Number (Optional)</Label>
+              <Input
+                id="tracking-number"
+                value={newOrder.tracking_number}
+                onChange={(e) => setNewOrder({...newOrder, tracking_number: e.target.value})}
+                placeholder="Enter tracking number"
+              />
+            </div>
           </div>
 
           <DialogFooter>
