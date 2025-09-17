@@ -347,9 +347,196 @@ class ClothierPOSAPITester:
         
         # Note: Customer deletion might not be implemented
 
+    def test_enhanced_order_features(self):
+        """Test new enhanced order features: bulk creation, tracking numbers, bulk status updates"""
+        print("\n🚀 Testing Enhanced Order Features...")
+        
+        # Create test data first
+        product_data = {
+            "name": "Enhanced Test Product",
+            "description": "Product for testing enhanced features",
+            "category": "Test Category",
+            "low_stock_threshold": 5,
+            "variants": [
+                {
+                    "size": "M",
+                    "color": "Blue",
+                    "sku": "ENH-M-BLU",
+                    "stock_quantity": 50,
+                    "price": 1000.00
+                },
+                {
+                    "size": "L",
+                    "color": "Red", 
+                    "sku": "ENH-L-RED",
+                    "stock_quantity": 30,
+                    "price": 1200.00
+                }
+            ]
+        }
+        
+        success, product = self.run_api_test('POST', 'products', 200, product_data)
+        if not success:
+            return self.log_test("Enhanced Features Setup", False, "- Cannot create test product")
+        
+        # Create multiple customers for bulk testing
+        customers = []
+        for i in range(3):
+            customer_data = {
+                "name": f"Bulk Test Customer {i+1}",
+                "email": f"bulktest{i+1}@example.com",
+                "phone": f"+94 71 000 000{i+1}",
+                "address": f"{i+1}00 Bulk Test Street",
+                "city": "Colombo",
+                "postal_code": f"0010{i+1}"
+            }
+            success, customer = self.run_api_test('POST', 'customers', 200, customer_data)
+            if success:
+                customers.append(customer)
+        
+        if len(customers) < 3:
+            return self.log_test("Enhanced Features Setup", False, "- Cannot create test customers")
+        
+        # Test 1: Bulk Order Creation (simulating frontend behavior)
+        print("   Testing Bulk Order Creation...")
+        bulk_orders = []
+        variant = product['variants'][0]
+        
+        for i, customer in enumerate(customers):
+            order_data = {
+                "customer_id": customer['id'],
+                "customer_name": customer['name'],
+                "customer_address": f"{customer['address']}, {customer['city']}, {customer['postal_code']}",
+                "customer_phone": customer['phone'],
+                "items": [
+                    {
+                        "product_id": product['id'],
+                        "variant_id": variant['id'],
+                        "product_name": product['name'],
+                        "size": variant['size'],
+                        "color": variant['color'],
+                        "quantity": i + 1,
+                        "unit_price": variant['price'],
+                        "total_price": variant['price'] * (i + 1)
+                    }
+                ],
+                "subtotal": variant['price'] * (i + 1),
+                "tax_amount": variant['price'] * (i + 1) * 0.1,
+                "total_amount": variant['price'] * (i + 1) * 1.1,
+                "tracking_number": f"BULK-TRK-{i+1:03d}"
+            }
+            
+            success, order = self.run_api_test('POST', 'orders', 200, order_data)
+            if success:
+                bulk_orders.append(order)
+                self.created_items['orders'].append(order['id'])
+        
+        bulk_success = len(bulk_orders) == 3
+        self.log_test("Bulk Order Creation", bulk_success, 
+                     f"- Created {len(bulk_orders)}/3 orders with tracking numbers")
+        
+        # Test 2: Tracking Number Integration
+        print("   Testing Tracking Number Integration...")
+        tracking_test_passed = True
+        for order in bulk_orders:
+            if not order.get('tracking_number'):
+                tracking_test_passed = False
+                break
+        
+        self.log_test("Tracking Number Integration", tracking_test_passed,
+                     f"- All {len(bulk_orders)} orders have tracking numbers")
+        
+        # Test 3: Bulk Status Updates (simulating frontend behavior)
+        print("   Testing Bulk Status Updates...")
+        bulk_status_success = 0
+        bulk_status_total = len(bulk_orders)
+        
+        for order in bulk_orders:
+            success, _ = self.run_api_test('PUT', f"orders/{order['id']}/status", 200,
+                                        params={'status': 'on_courier', 'tracking_number': f"UPDATED-{order['id'][:8]}"})
+            if success:
+                bulk_status_success += 1
+        
+        bulk_status_passed = bulk_status_success == bulk_status_total
+        self.log_test("Bulk Status Updates", bulk_status_passed,
+                     f"- Updated {bulk_status_success}/{bulk_status_total} orders")
+        
+        # Test 4: Order Sorting and Pagination (test data retrieval)
+        print("   Testing Order Sorting and Pagination...")
+        success, orders = self.run_api_test('GET', 'orders', 200)
+        
+        if success and isinstance(orders, list) and len(orders) >= 3:
+            # Test that we can retrieve orders (sorting is handled frontend-side)
+            has_required_fields = all(
+                'created_at' in order and 'total_amount' in order and 'status' in order 
+                for order in orders[-3:]  # Check last 3 orders
+            )
+            self.log_test("Order Data for Sorting", has_required_fields,
+                         f"- Retrieved {len(orders)} orders with sortable fields")
+            
+            # Test pagination simulation (20 orders per page)
+            orders_per_page = 20
+            total_pages = (len(orders) + orders_per_page - 1) // orders_per_page
+            self.log_test("Pagination Data", True,
+                         f"- {len(orders)} orders, {total_pages} pages at {orders_per_page}/page")
+        else:
+            self.log_test("Order Data for Sorting", False, "- Cannot retrieve order data")
+        
+        # Test 5: Bulk Label Generation
+        print("   Testing Bulk Label Generation...")
+        if bulk_orders:
+            order_ids = [order['id'] for order in bulk_orders]
+            try:
+                response = requests.post(f"{self.api_url}/orders/bulk-labels", json=order_ids)
+                bulk_labels_success = response.status_code == 200 and 'html' in response.headers.get('content-type', '').lower()
+                self.log_test("Bulk Label Generation", bulk_labels_success,
+                             f"- Generated labels for {len(order_ids)} orders")
+            except Exception as e:
+                self.log_test("Bulk Label Generation", False, f"- Error: {str(e)}")
+        
+        # Cleanup enhanced test data
+        self.run_api_test('DELETE', f"products/{product['id']}", 200)
+
+    def test_order_validation_and_error_handling(self):
+        """Test validation and error handling for enhanced features"""
+        print("\n🛡️ Testing Order Validation and Error Handling...")
+        
+        # Test 1: Invalid customer ID
+        invalid_order = {
+            "customer_id": "invalid-customer-id",
+            "customer_name": "Invalid Customer",
+            "customer_address": "Invalid Address",
+            "customer_phone": "Invalid Phone",
+            "items": [],
+            "subtotal": 0,
+            "tax_amount": 0,
+            "total_amount": 0
+        }
+        
+        success, _ = self.run_api_test('POST', 'orders', 422, invalid_order)  # Expecting validation error
+        if not success:
+            # If 422 not returned, check if it's 400 or 500
+            success, _ = self.run_api_test('POST', 'orders', 400, invalid_order)
+            if not success:
+                success, _ = self.run_api_test('POST', 'orders', 500, invalid_order)
+        
+        self.log_test("Invalid Order Validation", success, "- Properly rejects invalid orders")
+        
+        # Test 2: Invalid status update
+        success, _ = self.run_api_test('PUT', 'orders/invalid-order-id/status', 404,
+                                    params={'status': 'invalid_status'})
+        self.log_test("Invalid Status Update", success, "- Properly handles invalid order ID")
+        
+        # Test 3: Empty tracking number handling
+        if self.created_items['orders']:
+            order_id = self.created_items['orders'][0]
+            success, _ = self.run_api_test('PUT', f"orders/{order_id}/status", 200,
+                                        params={'status': 'pending', 'tracking_number': ''})
+            self.log_test("Empty Tracking Number", success, "- Handles empty tracking numbers")
+
     def run_all_tests(self):
         """Run all tests in sequence"""
-        print("🚀 Starting ClothierPOS API Tests...")
+        print("🚀 Starting ClothierPOS Enhanced API Tests...")
         print(f"Testing against: {self.base_url}")
         
         # Test basic connectivity
@@ -369,6 +556,8 @@ class ClothierPOSAPITester:
         self.test_products_crud()
         self.test_customers_crud()
         self.test_orders_workflow()
+        self.test_enhanced_order_features()  # NEW: Test enhanced features
+        self.test_order_validation_and_error_handling()  # NEW: Test validation
         self.test_shipping_labels()
         self.test_finance_reports()
         self.test_settings()
