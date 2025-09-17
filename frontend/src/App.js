@@ -1240,16 +1240,219 @@ const Orders = () => {
   );
 };
 
-const Finance = () => (
-  <div className="p-6">
-    <h1 className="text-3xl font-bold mb-6">Finance & Reports</h1>
-    <Card>
-      <CardContent className="p-6">
-        <p className="text-slate-600">Finance and reporting functionality coming soon...</p>
-      </CardContent>
-    </Card>
-  </div>
-);
+// Finance & Reports Component
+const Finance = () => {
+  const [dailySales, setDailySales] = useState(null);
+  const [profitLoss, setProfitLoss] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(new Date(new Date().setDate(1)).toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchDailySales();
+    fetchProfitLoss();
+  }, [selectedDate, startDate, endDate]);
+
+  const fetchDailySales = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API}/finance/daily-sales`, {
+        params: { date: selectedDate }
+      });
+      setDailySales(response.data);
+    } catch (error) {
+      toast.error("Failed to fetch daily sales");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchProfitLoss = async () => {
+    try {
+      const response = await axios.get(`${API}/finance/profit-loss`, {
+        params: { start_date: startDate, end_date: endDate }
+      });
+      setProfitLoss(response.data);
+    } catch (error) {
+      toast.error("Failed to fetch profit/loss data");
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <h1 className="text-3xl font-bold text-slate-800">Finance & Reports</h1>
+
+      {/* Daily Sales Report */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <TrendingUp size={20} />
+            <span>Daily Sales Report</span>
+          </CardTitle>
+          <CardDescription>View sales performance for a specific date</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-4">
+              <Label htmlFor="date-picker">Select Date:</Label>
+              <Input
+                id="date-picker"
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-auto"
+              />
+            </div>
+
+            {dailySales && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <h3 className="font-semibold text-blue-800">Total Sales</h3>
+                  <p className="text-2xl font-bold text-blue-900">LKR {dailySales.total_sales.toFixed(2)}</p>
+                </div>
+                <div className="p-4 bg-green-50 rounded-lg">
+                  <h3 className="font-semibold text-green-800">Total Orders</h3>
+                  <p className="text-2xl font-bold text-green-900">{dailySales.total_orders}</p>
+                </div>
+                <div className="p-4 bg-purple-50 rounded-lg">
+                  <h3 className="font-semibold text-purple-800">Average Order Value</h3>
+                  <p className="text-2xl font-bold text-purple-900">
+                    LKR {dailySales.total_orders > 0 ? (dailySales.total_sales / dailySales.total_orders).toFixed(2) : '0.00'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {dailySales?.orders && dailySales.orders.length > 0 && (
+              <div>
+                <h4 className="font-semibold mb-3">Orders for {selectedDate}</h4>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {dailySales.orders.map((order) => (
+                    <div key={order.id} className="p-3 bg-slate-50 rounded flex items-center justify-between">
+                      <div>
+                        <span className="font-medium">{order.order_number}</span>
+                        <span className="text-slate-600 ml-2">- {order.customer_name}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge className={
+                          order.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                          order.status === 'on_courier' ? 'bg-blue-100 text-blue-800' :
+                          order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                          'bg-red-100 text-red-800'
+                        }>
+                          {order.status.replace('_', ' ')}
+                        </Badge>
+                        <span className="font-semibold">LKR {order.total_amount.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Profit & Loss Report */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <DollarSign size={20} />
+            <span>Profit & Loss Report</span>
+          </CardTitle>
+          <CardDescription>Analyze profitability over a date range</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-4">
+              <div>
+                <Label htmlFor="start-date">Start Date:</Label>
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-auto"
+                />
+              </div>
+              <div>
+                <Label htmlFor="end-date">End Date:</Label>
+                <Input
+                  id="end-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-auto"
+                />
+              </div>
+            </div>
+
+            {profitLoss && (
+              <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <div className="p-4 bg-emerald-50 rounded-lg">
+                    <h3 className="font-semibold text-emerald-800">Total Revenue</h3>
+                    <p className="text-2xl font-bold text-emerald-900">LKR {profitLoss.total_revenue.toFixed(2)}</p>
+                  </div>
+                  <div className="p-4 bg-red-50 rounded-lg">
+                    <h3 className="font-semibold text-red-800">Total Cost</h3>
+                    <p className="text-2xl font-bold text-red-900">LKR {profitLoss.total_cost.toFixed(2)}</p>
+                    <p className="text-xs text-red-600">Estimated at 60% of revenue</p>
+                  </div>
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <h3 className="font-semibold text-blue-800">Net Profit</h3>
+                    <p className={`text-2xl font-bold ${profitLoss.profit >= 0 ? 'text-blue-900' : 'text-red-900'}`}>
+                      LKR {profitLoss.profit.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="p-4 bg-purple-50 rounded-lg">
+                    <h3 className="font-semibold text-purple-800">Profit Margin</h3>
+                    <p className={`text-2xl font-bold ${profitLoss.profit_margin >= 0 ? 'text-purple-900' : 'text-red-900'}`}>
+                      {profitLoss.profit_margin.toFixed(1)}%
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 rounded-lg">
+                  <h4 className="font-semibold mb-2">Period Summary</h4>
+                  <p className="text-slate-600">
+                    Analysis from {new Date(profitLoss.start_date).toLocaleDateString()} to {new Date(profitLoss.end_date).toLocaleDateString()}
+                  </p>
+                  <div className="mt-2 text-sm text-slate-500">
+                    <p>• Cost calculation is estimated at 60% of selling price</p>
+                    <p>• Profit margin = (Revenue - Cost) / Revenue × 100</p>
+                    <p>• Only delivered orders are included in calculations</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tax Report */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Tax Report</CardTitle>
+          <CardDescription>Tax summary for the selected period</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="p-4 bg-yellow-50 rounded-lg">
+            <h4 className="font-semibold text-yellow-800 mb-2">Tax Information</h4>
+            <p className="text-yellow-700">
+              Tax calculations are included in individual orders. 
+              Total tax collected in selected period: LKR {profitLoss ? (profitLoss.total_revenue * 0.1).toFixed(2) : '0.00'}
+            </p>
+            <p className="text-sm text-yellow-600 mt-1">
+              * Estimated tax at 10% rate for demonstration purposes
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
 const SettingsPage = () => (
   <div className="p-6">
