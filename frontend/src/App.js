@@ -1643,17 +1643,17 @@ const SettingsPage = () => {
                 <div className="text-sm text-slate-600">
                   <p><strong>Available Variables:</strong></p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-1 text-xs">
-                    <code>{{'{'}business_name{'}'}}</code>
-                    <code>{{'{'}business_address{'}'}}</code>
-                    <code>{{'{'}business_phone{'}'}}</code>
-                    <code>{{'{'}customer_name{'}'}}</code>
-                    <code>{{'{'}customer_address{'}'}}</code>
-                    <code>{{'{'}customer_phone{'}'}}</code>
-                    <code>{{'{'}order_number{'}'}}</code>
-                    <code>{{'{'}tracking_number{'}'}}</code>
-                    <code>{{'{'}order_date{'}'}}</code>
-                    <code>{{'{'}order_items{'}'}}</code>
-                    <code>{{'{'}total_amount{'}'}}</code>
+                    <code>{"{{business_name}}"}</code>
+                    <code>{"{{business_address}}"}</code>
+                    <code>{"{{business_phone}}"}</code>
+                    <code>{"{{customer_name}}"}</code>
+                    <code>{"{{customer_address}}"}</code>
+                    <code>{"{{customer_phone}}"}</code>
+                    <code>{"{{order_number}}"}</code>
+                    <code>{"{{tracking_number}}"}</code>
+                    <code>{"{{order_date}}"}</code>
+                    <code>{"{{order_items}}"}</code>
+                    <code>{"{{total_amount}}"}</code>
                   </div>
                 </div>
               </div>
