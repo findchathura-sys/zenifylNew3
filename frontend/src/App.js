@@ -799,9 +799,12 @@ const Orders = () => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [showBulkCreateDialog, setShowBulkCreateDialog] = useState(false);
   const [showBulkStatusDialog, setShowBulkStatusDialog] = useState(false);
+  const [showCustomerDialog, setShowCustomerDialog] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState([]);
+  const [editingOrder, setEditingOrder] = useState(null);
   const [sortBy, setSortBy] = useState('newest');
   const [currentPage, setCurrentPage] = useState(1);
   const [ordersPerPage] = useState(20);
@@ -810,7 +813,23 @@ const Orders = () => {
     customer_id: '',
     items: [{ product_id: '', variant_id: '', quantity: 1 }],
     tax_rate: 0,
-    tracking_number: ''
+    tracking_number: '',
+    courier_charges: 350,
+    discount_amount: 0,
+    discount_percentage: 0,
+    discount_type: 'amount', // 'amount' or 'percentage'
+    customer_phone_2: '',
+    cod_amount: 0,
+    remarks: ''
+  });
+
+  const [newCustomer, setNewCustomer] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    city: '',
+    postal_code: ''
   });
 
   const [bulkOrders, setBulkOrders] = useState([
