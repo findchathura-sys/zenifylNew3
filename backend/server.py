@@ -50,6 +50,8 @@ class ProductVariant(BaseModel):
     sku: str
     stock_quantity: int
     price: float
+    buy_price: Optional[float] = None
+    purchase_date: Optional[datetime] = None
 
 class Product(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
