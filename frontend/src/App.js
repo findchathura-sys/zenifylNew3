@@ -940,33 +940,219 @@ const Orders = () => {
       }
 
       const taxAmount = subtotal * (newOrder.tax_rate / 100);
-      const totalAmount = subtotal + taxAmount;
+      
+      // Calculate discount
+      let discountAmount = 0;
+      if (newOrder.discount_type === 'percentage') {
+        discountAmount = (subtotal + taxAmount) * (newOrder.discount_percentage / 100);
+      } else {
+        discountAmount = newOrder.discount_amount || 0;
+      }
+
+      const totalAmount = subtotal + taxAmount + newOrder.courier_charges - discountAmount;
 
       const orderData = {
         customer_id: customer.id,
         customer_name: customer.name,
         customer_address: `${customer.address}, ${customer.city}, ${customer.postal_code}`,
         customer_phone: customer.phone,
+        customer_phone_2: newOrder.customer_phone_2 || null,
+        customer_city: customer.city,
         items: orderItems,
         subtotal,
         tax_amount: taxAmount,
+        courier_charges: newOrder.courier_charges,
+        discount_amount: discountAmount,
+        discount_percentage: newOrder.discount_type === 'percentage' ? newOrder.discount_percentage : 0,
         total_amount: totalAmount,
-        tracking_number: newOrder.tracking_number || null
+        tracking_number: newOrder.tracking_number || null,
+        cod_amount: newOrder.cod_amount || totalAmount,
+        remarks: newOrder.remarks || null
       };
 
       await axios.post(`${API}/orders`, orderData);
       toast.success("Order created successfully");
       setShowAddDialog(false);
-      setNewOrder({
-        customer_id: '',
-        items: [{ product_id: '', variant_id: '', quantity: 1 }],
-        tax_rate: 0,
-        tracking_number: ''
-      });
+      resetNewOrder();
       fetchOrders();
     } catch (error) {
       toast.error("Failed to create order");
     }
+  };
+
+  const handleEditOrder = (order) => {
+    setEditingOrder(order);
+    setNewOrder({
+      customer_id: order.customer_id,
+      items: order.items.map(item => ({
+        product_id: item.product_id,
+        variant_id: item.variant_id,
+        quantity: item.quantity
+      })),
+      tax_rate: (order.tax_amount / order.subtotal * 100) || 0,
+      tracking_number: order.tracking_number || '',
+      courier_charges: order.courier_charges || 350,
+      discount_amount: order.discount_amount || 0,
+      discount_percentage: order.discount_percentage || 0,
+      discount_type: order.discount_percentage > 0 ? 'percentage' : 'amount',
+      customer_phone_2: order.customer_phone_2 || '',
+      cod_amount: order.cod_amount || order.total_amount,
+      remarks: order.remarks || ''
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleUpdateOrder = async () => {
+    try {
+      const customer = customers.find(c => c.id === newOrder.customer_id);
+      if (!customer) {
+        toast.error("Please select a customer");
+        return;
+      }
+
+      const orderItems = [];
+      let subtotal = 0;
+
+      for (const item of newOrder.items) {
+        const product = products.find(p => p.id === item.product_id);
+        const variant = product?.variants?.find(v => v.id === item.variant_id);
+        
+        if (!product || !variant) {
+          toast.error("Invalid product or variant selected");
+          return;
+        }
+
+        const totalPrice = variant.price * item.quantity;
+        subtotal += totalPrice;
+
+        orderItems.push({
+          product_id: product.id,
+          variant_id: variant.id,
+          product_name: product.name,
+          size: variant.size,
+          color: variant.color,
+          quantity: item.quantity,
+          unit_price: variant.price,
+          total_price: totalPrice
+        });
+      }
+
+      const taxAmount = subtotal * (newOrder.tax_rate / 100);
+      
+      // Calculate discount
+      let discountAmount = 0;
+      if (newOrder.discount_type === 'percentage') {
+        discountAmount = (subtotal + taxAmount) * (newOrder.discount_percentage / 100);
+      } else {
+        discountAmount = newOrder.discount_amount || 0;
+      }
+
+      const totalAmount = subtotal + taxAmount + newOrder.courier_charges - discountAmount;
+
+      const orderData = {
+        ...editingOrder,
+        customer_id: customer.id,
+        customer_name: customer.name,
+        customer_address: `${customer.address}, ${customer.city}, ${customer.postal_code}`,
+        customer_phone: customer.phone,
+        customer_phone_2: newOrder.customer_phone_2 || null,
+        customer_city: customer.city,
+        items: orderItems,
+        subtotal,
+        tax_amount: taxAmount,
+        courier_charges: newOrder.courier_charges,
+        discount_amount: discountAmount,
+        discount_percentage: newOrder.discount_type === 'percentage' ? newOrder.discount_percentage : 0,
+        total_amount: totalAmount,
+        tracking_number: newOrder.tracking_number || null,
+        cod_amount: newOrder.cod_amount || totalAmount,
+        remarks: newOrder.remarks || null
+      };
+
+      await axios.put(`${API}/orders/${editingOrder.id}`, orderData);
+      toast.success("Order updated successfully");
+      setShowEditDialog(false);
+      setEditingOrder(null);
+      resetNewOrder();
+      fetchOrders();
+    } catch (error) {
+      toast.error("Failed to update order");
+    }
+  };
+
+  const handleDeleteOrder = async (orderId) => {
+    if (window.confirm("Are you sure you want to delete this order? Stock quantities will be restored.")) {
+      try {
+        await axios.delete(`${API}/orders/${orderId}`);
+        toast.success("Order deleted successfully");
+        fetchOrders();
+      } catch (error) {
+        toast.error("Failed to delete order");
+      }
+    }
+  };
+
+  const handleCreateCustomer = async () => {
+    try {
+      const response = await axios.post(`${API}/customers`, newCustomer);
+      toast.success("Customer created successfully");
+      setCustomers([...customers, response.data]);
+      setNewOrder({ ...newOrder, customer_id: response.data.id });
+      setShowCustomerDialog(false);
+      setNewCustomer({
+        name: '',
+        email: '',
+        phone: '',
+        address: '',
+        city: '',
+        postal_code: ''
+      });
+    } catch (error) {
+      toast.error("Failed to create customer");
+    }
+  };
+
+  const handleExportCSV = async () => {
+    if (selectedOrders.length === 0) {
+      toast.error("Please select orders to export");
+      return;
+    }
+
+    try {
+      const response = await axios.post(`${API}/orders/export-csv`, selectedOrders, {
+        responseType: 'blob'
+      });
+      
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `orders_export_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("Orders exported successfully");
+    } catch (error) {
+      toast.error("Failed to export orders");
+    }
+  };
+
+  const resetNewOrder = () => {
+    setNewOrder({
+      customer_id: '',
+      items: [{ product_id: '', variant_id: '', quantity: 1 }],
+      tax_rate: 0,
+      tracking_number: '',
+      courier_charges: 350,
+      discount_amount: 0,
+      discount_percentage: 0,
+      discount_type: 'amount',
+      customer_phone_2: '',
+      cod_amount: 0,
+      remarks: ''
+    });
   };
 
   const handleBulkCreateOrders = async () => {
