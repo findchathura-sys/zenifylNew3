@@ -970,7 +970,14 @@ const Customers = () => {
       </div>
 
       {/* Add/Edit Customer Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      <Dialog open={showAddDialog || showEditDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowAddDialog(false);
+          setShowEditDialog(false);
+          setEditingCustomer(null);
+          resetNewCustomer();
+        }
+      }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingCustomer ? 'Edit Customer' : 'Add New Customer'}</DialogTitle>
@@ -1047,15 +1054,9 @@ const Customers = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setShowAddDialog(false);
+              setShowEditDialog(false);
               setEditingCustomer(null);
-              setNewCustomer({
-                name: '',
-                email: '',
-                phone: '',
-                address: '',
-                city: '',
-                postal_code: ''
-              });
+              resetNewCustomer();
             }}>
               Cancel
             </Button>
