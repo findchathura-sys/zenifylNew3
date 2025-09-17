@@ -1897,6 +1897,92 @@ const Orders = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Customer Creation Dialog */}
+      <Dialog open={showCustomerDialog} onOpenChange={setShowCustomerDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Customer</DialogTitle>
+            <DialogDescription>
+              Create a new customer and add them to this order.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="new-customer-name">Full Name</Label>
+                <Input
+                  id="new-customer-name"
+                  value={newCustomer.name}
+                  onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
+                  placeholder="John Doe"
+                />
+              </div>
+              <div>
+                <Label htmlFor="new-customer-email">Email</Label>
+                <Input
+                  id="new-customer-email"
+                  type="email"
+                  value={newCustomer.email}
+                  onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
+                  placeholder="john@example.com"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="new-customer-phone">Phone Number</Label>
+              <Input
+                id="new-customer-phone"
+                value={newCustomer.phone}
+                onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
+                placeholder="+94 71 234 5678"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="new-customer-address">Address</Label>
+              <Textarea
+                id="new-customer-address"
+                value={newCustomer.address}
+                onChange={(e) => setNewCustomer({...newCustomer, address: e.target.value})}
+                placeholder="Street address"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="new-customer-city">City</Label>
+                <Input
+                  id="new-customer-city"
+                  value={newCustomer.city}
+                  onChange={(e) => setNewCustomer({...newCustomer, city: e.target.value})}
+                  placeholder="Colombo"
+                />
+              </div>
+              <div>
+                <Label htmlFor="new-customer-postal">Postal Code</Label>
+                <Input
+                  id="new-customer-postal"
+                  value={newCustomer.postal_code}
+                  onChange={(e) => setNewCustomer({...newCustomer, postal_code: e.target.value})}
+                  placeholder="00100"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCustomerDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateCustomer} className="bg-gradient-to-r from-green-600 to-teal-600">
+              Create & Select Customer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Bulk Create Orders Dialog */}
       <Dialog open={showBulkCreateDialog} onOpenChange={setShowBulkCreateDialog}>
         <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
