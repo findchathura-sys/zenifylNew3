@@ -1212,11 +1212,29 @@ const Orders = () => {
         <h1 className="text-3xl font-bold text-slate-800">Order Management</h1>
         <div className="flex space-x-3">
           {selectedOrders.length > 0 && (
-            <Button onClick={handleBulkPrintLabels} variant="outline" className="border-orange-300 text-orange-700 hover:bg-orange-50">
-              <Printer size={20} className="mr-2" />
-              Print Labels ({selectedOrders.length})
-            </Button>
+            <>
+              <Button 
+                onClick={() => setShowBulkStatusDialog(true)} 
+                variant="outline" 
+                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+              >
+                <Edit size={20} className="mr-2" />
+                Update Status ({selectedOrders.length})
+              </Button>
+              <Button onClick={handleBulkPrintLabels} variant="outline" className="border-orange-300 text-orange-700 hover:bg-orange-50">
+                <Printer size={20} className="mr-2" />
+                Print Labels ({selectedOrders.length})
+              </Button>
+            </>
           )}
+          <Button 
+            onClick={() => setShowBulkCreateDialog(true)} 
+            variant="outline" 
+            className="border-purple-300 text-purple-700 hover:bg-purple-50"
+          >
+            <Plus size={20} className="mr-2" />
+            Bulk Create
+          </Button>
           <Button onClick={() => setShowAddDialog(true)} className="bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700">
             <Plus size={20} className="mr-2" />
             Create Order
@@ -1224,8 +1242,54 @@ const Orders = () => {
         </div>
       </div>
 
+      {/* Sorting and Controls */}
+      <div className="flex items-center justify-between bg-white p-4 rounded-lg shadow-sm">
+        <div className="flex items-center space-x-4">
+          <Label htmlFor="sort-select">Sort by:</Label>
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest First</SelectItem>
+              <SelectItem value="oldest">Oldest First</SelectItem>
+              <SelectItem value="amount_high">Amount (High to Low)</SelectItem>
+              <SelectItem value="amount_low">Amount (Low to High)</SelectItem>
+              <SelectItem value="status">Status</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="flex items-center space-x-4">
+          <span className="text-sm text-slate-600">
+            Showing {indexOfFirstOrder + 1}-{Math.min(indexOfLastOrder, orders.length)} of {orders.length} orders
+          </span>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => paginate(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            <span className="text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => paginate(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <div className="space-y-4">
-        {orders.map((order) => (
+        {currentOrders.map((order) => (
           <Card key={order.id} className="hover:shadow-lg transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
