@@ -812,6 +812,7 @@ const Customers = () => {
       name: customer.name,
       email: customer.email,
       phone: customer.phone,
+      phone_2: customer.phone_2 || '',
       address: customer.address,
       city: customer.city,
       postal_code: customer.postal_code
