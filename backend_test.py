@@ -256,32 +256,295 @@ class ClothierPOSAPITester:
             self.log_test("Create Order", False)
 
     def test_shipping_labels(self):
-        """Test shipping label generation"""
-        print("\n🏷️ Testing Shipping Labels...")
+        """Test shipping label generation - COMPREHENSIVE TESTING"""
+        print("\n🏷️ Testing Shipping Labels (COMPREHENSIVE)...")
+        
+        # Create specific test data for label generation
+        self.create_label_test_data()
         
         if not self.created_items['orders']:
-            return self.log_test("Shipping Labels", False, "- No orders available")
+            return self.log_test("Shipping Labels Setup", False, "- No orders available for testing")
         
-        order_id = self.created_items['orders'][0]
+        # TEST 1: Individual Label Generation
+        print("   Testing Individual Label Generation...")
+        for i, order_id in enumerate(self.created_items['orders'][:3]):  # Test first 3 orders
+            try:
+                response = requests.get(f"{self.api_url}/orders/{order_id}/shipping-label")
+                
+                # Check response status
+                status_ok = response.status_code == 200
+                
+                # Check content type
+                content_type = response.headers.get('content-type', '').lower()
+                is_html = 'html' in content_type
+                
+                # Check HTML content quality
+                html_content = response.text
+                has_template_vars = all(var not in html_content for var in [
+                    '{{business_name}}', '{{customer_name}}', '{{order_number}}',
+                    '{{tracking_number}}', '{{order_items}}', '{{total_amount}}'
+                ])
+                
+                # Check for essential content
+                has_customer_info = any(keyword in html_content.lower() for keyword in ['customer', 'name', 'address'])
+                has_order_info = any(keyword in html_content.lower() for keyword in ['order', 'total', 'items'])
+                
+                success = status_ok and is_html and has_template_vars and has_customer_info and has_order_info
+                
+                self.log_test(f"Individual Label {i+1}", success, 
+                             f"- Status: {response.status_code}, HTML: {is_html}, Variables replaced: {has_template_vars}")
+                
+                if not success:
+                    print(f"     Content preview: {html_content[:200]}...")
+                    
+            except Exception as e:
+                self.log_test(f"Individual Label {i+1}", False, f"- Error: {str(e)}")
         
-        # Test individual label
+        # TEST 2: Bulk Label Generation
+        print("   Testing Bulk Label Generation...")
         try:
-            response = requests.get(f"{self.api_url}/orders/{order_id}/shipping-label")
-            success = response.status_code == 200 and 'html' in response.headers.get('content-type', '').lower()
-            self.log_test("Individual Shipping Label", success, 
-                         f"- Content-Type: {response.headers.get('content-type', 'unknown')}")
+            # Test with multiple orders
+            test_order_ids = self.created_items['orders'][:3]
+            response = requests.post(f"{self.api_url}/orders/bulk-labels", 
+                                   json=test_order_ids,
+                                   headers={'Content-Type': 'application/json'})
+            
+            status_ok = response.status_code == 200
+            content_type = response.headers.get('content-type', '').lower()
+            is_html = 'html' in content_type
+            
+            html_content = response.text
+            
+            # Check for page breaks (bulk labels should have page breaks)
+            has_page_breaks = 'page-break-after' in html_content
+            
+            # Check that all orders are included
+            order_count_in_html = html_content.count('Order #:') if 'Order #:' in html_content else html_content.count('order')
+            expected_orders = len(test_order_ids)
+            
+            # Check template variables are replaced
+            has_template_vars = all(var not in html_content for var in [
+                '{{business_name}}', '{{customer_name}}', '{{order_number}}',
+                '{{tracking_number}}', '{{order_items}}', '{{total_amount}}'
+            ])
+            
+            success = status_ok and is_html and has_template_vars and has_page_breaks
+            
+            self.log_test("Bulk Label Generation", success, 
+                         f"- Orders: {expected_orders}, Page breaks: {has_page_breaks}, Variables replaced: {has_template_vars}")
+            
+            if not success:
+                print(f"     Status: {response.status_code}, Content-Type: {content_type}")
+                print(f"     Content preview: {html_content[:300]}...")
+                
         except Exception as e:
-            self.log_test("Individual Shipping Label", False, f"- Error: {str(e)}")
+            self.log_test("Bulk Label Generation", False, f"- Error: {str(e)}")
         
-        # Test bulk labels
+        # TEST 3: Label Content Validation with Different Order Types
+        print("   Testing Label Content with Different Order Types...")
+        
+        # Test with order that has tracking number
+        order_with_tracking = None
+        order_without_tracking = None
+        
+        for order_id in self.created_items['orders']:
+            try:
+                order_response = requests.get(f"{self.api_url}/orders/{order_id}")
+                if order_response.status_code == 200:
+                    order_data = order_response.json()
+                    if order_data.get('tracking_number'):
+                        order_with_tracking = order_id
+                    else:
+                        order_without_tracking = order_id
+            except:
+                continue
+        
+        # Test order with tracking number
+        if order_with_tracking:
+            try:
+                response = requests.get(f"{self.api_url}/orders/{order_with_tracking}/shipping-label")
+                html_content = response.text
+                
+                # Should not contain "TBD" for tracking number
+                tracking_handled = 'TBD' not in html_content or html_content.count('TBD') <= 1  # Order number might be TBD
+                
+                self.log_test("Label with Tracking Number", tracking_handled,
+                             f"- Tracking number properly displayed (no TBD)")
+            except Exception as e:
+                self.log_test("Label with Tracking Number", False, f"- Error: {str(e)}")
+        
+        # Test order without tracking number
+        if order_without_tracking:
+            try:
+                response = requests.get(f"{self.api_url}/orders/{order_without_tracking}/shipping-label")
+                html_content = response.text
+                
+                # Should contain "TBD" for tracking number
+                tracking_handled = 'TBD' in html_content
+                
+                self.log_test("Label without Tracking Number", tracking_handled,
+                             f"- Shows TBD for missing tracking number")
+            except Exception as e:
+                self.log_test("Label without Tracking Number", False, f"- Error: {str(e)}")
+        
+        # TEST 4: A4 Format and Styling
+        print("   Testing A4 Format and Styling...")
+        if self.created_items['orders']:
+            try:
+                response = requests.get(f"{self.api_url}/orders/{self.created_items['orders'][0]}/shipping-label")
+                html_content = response.text
+                
+                # Check for A4 dimensions (210mm x 297mm)
+                has_a4_dimensions = '210mm' in html_content and '297mm' in html_content
+                
+                # Check for proper styling
+                has_styling = 'font-family' in html_content and 'padding' in html_content
+                
+                # Check for border/structure
+                has_structure = 'border' in html_content or 'div' in html_content
+                
+                success = has_a4_dimensions and has_styling and has_structure
+                
+                self.log_test("A4 Format and Styling", success,
+                             f"- A4 dims: {has_a4_dimensions}, Styling: {has_styling}, Structure: {has_structure}")
+                
+            except Exception as e:
+                self.log_test("A4 Format and Styling", False, f"- Error: {str(e)}")
+        
+        # TEST 5: Error Handling for Invalid Orders
+        print("   Testing Error Handling...")
+        
+        # Test with invalid order ID
+        try:
+            response = requests.get(f"{self.api_url}/orders/invalid-order-id/shipping-label")
+            error_handled = response.status_code == 404
+            
+            self.log_test("Invalid Order ID Handling", error_handled,
+                         f"- Returns 404 for invalid order ID")
+        except Exception as e:
+            self.log_test("Invalid Order ID Handling", False, f"- Error: {str(e)}")
+        
+        # Test bulk labels with invalid order IDs
         try:
             response = requests.post(f"{self.api_url}/orders/bulk-labels", 
-                                   json=self.created_items['orders'])
-            success = response.status_code == 200 and 'html' in response.headers.get('content-type', '').lower()
-            self.log_test("Bulk Shipping Labels", success, 
-                         f"- Orders: {len(self.created_items['orders'])}")
+                                   json=["invalid-id-1", "invalid-id-2"])
+            
+            # Should either return empty content or handle gracefully
+            graceful_handling = response.status_code == 200
+            
+            self.log_test("Bulk Labels Invalid IDs", graceful_handling,
+                         f"- Handles invalid IDs gracefully")
         except Exception as e:
-            self.log_test("Bulk Shipping Labels", False, f"- Error: {str(e)}")
+            self.log_test("Bulk Labels Invalid IDs", False, f"- Error: {str(e)}")
+
+    def create_label_test_data(self):
+        """Create specific test data for comprehensive label testing"""
+        print("   Creating comprehensive label test data...")
+        
+        # Create test product
+        product_data = {
+            "name": "Label Test T-Shirt",
+            "description": "T-shirt for comprehensive label testing",
+            "category": "T-Shirts",
+            "low_stock_threshold": 5,
+            "variants": [
+                {
+                    "size": "M",
+                    "color": "Blue",
+                    "sku": "LBL-TSH-M-BLU",
+                    "stock_quantity": 100,
+                    "price": 1500.00
+                },
+                {
+                    "size": "L",
+                    "color": "Red", 
+                    "sku": "LBL-TSH-L-RED",
+                    "stock_quantity": 100,
+                    "price": 1700.00
+                }
+            ]
+        }
+        
+        success, product = self.run_api_test('POST', 'products', 200, product_data)
+        if not success:
+            return
+        
+        # Create test customer
+        customer_data = {
+            "name": "Label Test Customer",
+            "email": "labeltest@example.com",
+            "phone": "+94 71 555 1234",
+            "address": "123 Label Test Street, Test Area",
+            "city": "Colombo",
+            "postal_code": "00100"
+        }
+        
+        success, customer = self.run_api_test('POST', 'customers', 200, customer_data)
+        if not success:
+            return
+        
+        # Create multiple test orders with different characteristics
+        test_orders = [
+            {
+                "name": "Order with Tracking",
+                "tracking_number": "TRK-LABEL-001",
+                "remarks": "Test order with tracking number",
+                "variant_index": 0
+            },
+            {
+                "name": "Order without Tracking", 
+                "tracking_number": None,
+                "remarks": "Test order without tracking number",
+                "variant_index": 1
+            },
+            {
+                "name": "Order with Long Remarks",
+                "tracking_number": "TRK-LABEL-002",
+                "remarks": "This is a very long remark to test how the label handles extended text content and formatting",
+                "variant_index": 0
+            }
+        ]
+        
+        for order_config in test_orders:
+            variant = product['variants'][order_config['variant_index']]
+            
+            order_data = {
+                "customer_id": customer['id'],
+                "customer_name": customer['name'],
+                "customer_address": f"{customer['address']}, {customer['city']}, {customer['postal_code']}",
+                "customer_phone": customer['phone'],
+                "customer_phone_2": "+94 77 555 9876",
+                "customer_city": customer['city'],
+                "items": [
+                    {
+                        "product_id": product['id'],
+                        "variant_id": variant['id'],
+                        "product_name": product['name'],
+                        "size": variant['size'],
+                        "color": variant['color'],
+                        "quantity": 2,
+                        "unit_price": variant['price'],
+                        "total_price": variant['price'] * 2
+                    }
+                ],
+                "subtotal": variant['price'] * 2,
+                "tax_amount": variant['price'] * 2 * 0.1,
+                "courier_charges": 350.0,
+                "discount_amount": 50.0,
+                "total_amount": (variant['price'] * 2 * 1.1) + 350.0 - 50.0,
+                "cod_amount": 2000.0,
+                "remarks": order_config['remarks']
+            }
+            
+            if order_config['tracking_number']:
+                order_data['tracking_number'] = order_config['tracking_number']
+            
+            success, order = self.run_api_test('POST', 'orders', 200, order_data)
+            if success:
+                self.created_items['orders'].append(order['id'])
+                print(f"     Created {order_config['name']}: {order.get('order_number', order['id'])}")
+        
+        print(f"   Created {len(test_orders)} test orders for label testing")
 
     def test_finance_reports(self):
         """Test finance and reporting endpoints"""
