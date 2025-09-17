@@ -89,7 +89,7 @@ class Order(BaseModel):
     customer_address: str
     customer_phone: str
     customer_phone_2: Optional[str] = None
-    customer_city: str
+    customer_city: Optional[str] = None
     items: List[OrderItem]
     subtotal: float
     tax_amount: float
