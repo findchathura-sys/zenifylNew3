@@ -557,13 +557,20 @@ const Inventory = () => {
         ))}
       </div>
 
-      {/* Add Product Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      {/* Add/Edit Product Dialog */}
+      <Dialog open={showAddDialog || showEditDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowAddDialog(false);
+          setShowEditDialog(false);
+          setEditingProduct(null);
+          resetNewProduct();
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add New Product</DialogTitle>
+            <DialogTitle>{editingProduct ? 'Edit Product' : 'Add New Product'}</DialogTitle>
             <DialogDescription>
-              Create a new product with multiple size and color variants.
+              {editingProduct ? 'Update product information and variants.' : 'Create a new product with multiple size and color variants.'}
             </DialogDescription>
           </DialogHeader>
           
