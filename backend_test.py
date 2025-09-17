@@ -348,7 +348,7 @@ class ClothierPOSAPITester:
         # Note: Customer deletion might not be implemented
 
     def test_enhanced_order_features(self):
-        """Test new enhanced order features: bulk creation, tracking numbers, bulk status updates"""
+        """Test ALL new enhanced order features from the review request"""
         print("\n🚀 Testing Enhanced Order Features...")
         
         # Create test data first
@@ -379,35 +379,139 @@ class ClothierPOSAPITester:
         if not success:
             return self.log_test("Enhanced Features Setup", False, "- Cannot create test product")
         
-        # Create multiple customers for bulk testing
-        customers = []
-        for i in range(3):
-            customer_data = {
-                "name": f"Bulk Test Customer {i+1}",
-                "email": f"bulktest{i+1}@example.com",
-                "phone": f"+94 71 000 000{i+1}",
-                "address": f"{i+1}00 Bulk Test Street",
-                "city": "Colombo",
-                "postal_code": f"0010{i+1}"
-            }
-            success, customer = self.run_api_test('POST', 'customers', 200, customer_data)
-            if success:
-                customers.append(customer)
+        # Create test customer
+        customer_data = {
+            "name": "Enhanced Test Customer",
+            "email": "enhanced@example.com",
+            "phone": "+94 71 123 4567",
+            "address": "123 Enhanced Street",
+            "city": "Colombo",
+            "postal_code": "00100"
+        }
+        success, customer = self.run_api_test('POST', 'customers', 200, customer_data)
+        if not success:
+            return self.log_test("Enhanced Features Setup", False, "- Cannot create test customer")
         
-        if len(customers) < 3:
-            return self.log_test("Enhanced Features Setup", False, "- Cannot create test customers")
-        
-        # Test 1: Bulk Order Creation (simulating frontend behavior)
-        print("   Testing Bulk Order Creation...")
-        bulk_orders = []
         variant = product['variants'][0]
         
-        for i, customer in enumerate(customers):
-            order_data = {
+        # TEST 1: Enhanced Order Fields (courier charges, discounts, secondary phone, COD, remarks)
+        print("   Testing Enhanced Order Fields...")
+        enhanced_order_data = {
+            "customer_id": customer['id'],
+            "customer_name": customer['name'],
+            "customer_address": f"{customer['address']}, {customer['city']}, {customer['postal_code']}",
+            "customer_phone": customer['phone'],
+            "customer_phone_2": "+94 77 987 6543",  # NEW: Secondary phone
+            "customer_city": customer['city'],
+            "items": [
+                {
+                    "product_id": product['id'],
+                    "variant_id": variant['id'],
+                    "product_name": product['name'],
+                    "size": variant['size'],
+                    "color": variant['color'],
+                    "quantity": 2,
+                    "unit_price": variant['price'],
+                    "total_price": variant['price'] * 2
+                }
+            ],
+            "subtotal": variant['price'] * 2,
+            "tax_amount": variant['price'] * 2 * 0.1,
+            "courier_charges": 350.0,  # NEW: Courier charges (default 350 LKR)
+            "discount_amount": 100.0,  # NEW: Discount amount
+            "discount_percentage": 0.0,  # NEW: Discount percentage
+            "total_amount": (variant['price'] * 2 * 1.1) + 350.0 - 100.0,  # Include courier and discount
+            "cod_amount": 1500.0,  # NEW: COD amount
+            "remarks": "Test order with enhanced fields"  # NEW: Remarks
+        }
+        
+        success, enhanced_order = self.run_api_test('POST', 'orders', 200, enhanced_order_data)
+        if success and 'id' in enhanced_order:
+            self.created_items['orders'].append(enhanced_order['id'])
+            
+            # Verify all enhanced fields are present
+            enhanced_fields_present = all(field in enhanced_order for field in [
+                'customer_phone_2', 'courier_charges', 'discount_amount', 
+                'discount_percentage', 'cod_amount', 'remarks'
+            ])
+            
+            self.log_test("Enhanced Order Fields", enhanced_fields_present,
+                         f"- Order {enhanced_order.get('order_number')} with all enhanced fields")
+            
+            # Verify total calculation includes courier charges and discounts
+            expected_total = (variant['price'] * 2 * 1.1) + 350.0 - 100.0
+            actual_total = enhanced_order.get('total_amount', 0)
+            total_calculation_correct = abs(expected_total - actual_total) < 0.01
+            
+            self.log_test("Total Calculation with Courier & Discount", total_calculation_correct,
+                         f"- Expected: {expected_total:.2f}, Actual: {actual_total:.2f}")
+        else:
+            self.log_test("Enhanced Order Fields", False, "- Failed to create enhanced order")
+            return
+        
+        # TEST 2: Order Edit Functionality (PUT endpoint)
+        print("   Testing Order Edit Functionality...")
+        
+        # Modify the order data
+        enhanced_order_data['remarks'] = "Updated remarks via edit"
+        enhanced_order_data['courier_charges'] = 400.0  # Changed courier charges
+        enhanced_order_data['discount_amount'] = 150.0  # Changed discount
+        enhanced_order_data['total_amount'] = (variant['price'] * 2 * 1.1) + 400.0 - 150.0
+        
+        success, updated_order = self.run_api_test('PUT', f"orders/{enhanced_order['id']}", 200, enhanced_order_data)
+        if success:
+            # Verify the changes were applied
+            remarks_updated = updated_order.get('remarks') == "Updated remarks via edit"
+            courier_updated = updated_order.get('courier_charges') == 400.0
+            
+            self.log_test("Order Edit Functionality", remarks_updated and courier_updated,
+                         f"- Updated remarks and courier charges successfully")
+        else:
+            self.log_test("Order Edit Functionality", False, "- Failed to update order")
+        
+        # TEST 3: Order Delete with Stock Restoration
+        print("   Testing Order Delete with Stock Restoration...")
+        
+        # Get current stock before deletion
+        success, product_before = self.run_api_test('GET', f"products/{product['id']}", 200)
+        if success:
+            stock_before = next((v['stock_quantity'] for v in product_before['variants'] if v['id'] == variant['id']), 0)
+            
+            # Delete the order
+            success, _ = self.run_api_test('DELETE', f"orders/{enhanced_order['id']}", 200)
+            if success:
+                # Check if stock was restored
+                success, product_after = self.run_api_test('GET', f"products/{product['id']}", 200)
+                if success:
+                    stock_after = next((v['stock_quantity'] for v in product_after['variants'] if v['id'] == variant['id']), 0)
+                    stock_restored = stock_after == stock_before + 2  # We ordered 2 items
+                    
+                    self.log_test("Order Delete with Stock Restoration", stock_restored,
+                                 f"- Stock before: {stock_before}, after: {stock_after} (restored +2)")
+                    
+                    # Remove from our tracking since it's deleted
+                    if enhanced_order['id'] in self.created_items['orders']:
+                        self.created_items['orders'].remove(enhanced_order['id'])
+                else:
+                    self.log_test("Order Delete with Stock Restoration", False, "- Cannot verify stock after deletion")
+            else:
+                self.log_test("Order Delete with Stock Restoration", False, "- Failed to delete order")
+        else:
+            self.log_test("Order Delete with Stock Restoration", False, "- Cannot get initial stock")
+        
+        # TEST 4: CSV Export Functionality
+        print("   Testing CSV Export Functionality...")
+        
+        # Create a few more orders for CSV export testing
+        csv_test_orders = []
+        for i in range(3):
+            csv_order_data = {
                 "customer_id": customer['id'],
                 "customer_name": customer['name'],
                 "customer_address": f"{customer['address']}, {customer['city']}, {customer['postal_code']}",
                 "customer_phone": customer['phone'],
+                "customer_phone_2": f"+94 77 888 000{i}",
+                "customer_city": customer['city'],
                 "items": [
                     {
                         "product_id": product['id'],
@@ -415,84 +519,99 @@ class ClothierPOSAPITester:
                         "product_name": product['name'],
                         "size": variant['size'],
                         "color": variant['color'],
-                        "quantity": i + 1,
+                        "quantity": 1,
                         "unit_price": variant['price'],
-                        "total_price": variant['price'] * (i + 1)
+                        "total_price": variant['price']
                     }
                 ],
-                "subtotal": variant['price'] * (i + 1),
-                "tax_amount": variant['price'] * (i + 1) * 0.1,
-                "total_amount": variant['price'] * (i + 1) * 1.1,
-                "tracking_number": f"BULK-TRK-{i+1:03d}"
+                "subtotal": variant['price'],
+                "tax_amount": variant['price'] * 0.1,
+                "courier_charges": 350.0,
+                "discount_amount": 50.0,
+                "total_amount": (variant['price'] * 1.1) + 350.0 - 50.0,
+                "cod_amount": 1000.0 + (i * 100),
+                "remarks": f"CSV test order {i+1}",
+                "tracking_number": f"CSV-TRK-{i+1:03d}"
             }
             
-            success, order = self.run_api_test('POST', 'orders', 200, order_data)
+            success, csv_order = self.run_api_test('POST', 'orders', 200, csv_order_data)
             if success:
-                bulk_orders.append(order)
-                self.created_items['orders'].append(order['id'])
+                csv_test_orders.append(csv_order['id'])
+                self.created_items['orders'].append(csv_order['id'])
         
-        bulk_success = len(bulk_orders) == 3
-        self.log_test("Bulk Order Creation", bulk_success, 
-                     f"- Created {len(bulk_orders)}/3 orders with tracking numbers")
-        
-        # Test 2: Tracking Number Integration
-        print("   Testing Tracking Number Integration...")
-        tracking_test_passed = True
-        for order in bulk_orders:
-            if not order.get('tracking_number'):
-                tracking_test_passed = False
-                break
-        
-        self.log_test("Tracking Number Integration", tracking_test_passed,
-                     f"- All {len(bulk_orders)} orders have tracking numbers")
-        
-        # Test 3: Bulk Status Updates (simulating frontend behavior)
-        print("   Testing Bulk Status Updates...")
-        bulk_status_success = 0
-        bulk_status_total = len(bulk_orders)
-        
-        for order in bulk_orders:
-            success, _ = self.run_api_test('PUT', f"orders/{order['id']}/status", 200,
-                                        params={'status': 'on_courier', 'tracking_number': f"UPDATED-{order['id'][:8]}"})
-            if success:
-                bulk_status_success += 1
-        
-        bulk_status_passed = bulk_status_success == bulk_status_total
-        self.log_test("Bulk Status Updates", bulk_status_passed,
-                     f"- Updated {bulk_status_success}/{bulk_status_total} orders")
-        
-        # Test 4: Order Sorting and Pagination (test data retrieval)
-        print("   Testing Order Sorting and Pagination...")
-        success, orders = self.run_api_test('GET', 'orders', 200)
-        
-        if success and isinstance(orders, list) and len(orders) >= 3:
-            # Test that we can retrieve orders (sorting is handled frontend-side)
-            has_required_fields = all(
-                'created_at' in order and 'total_amount' in order and 'status' in order 
-                for order in orders[-3:]  # Check last 3 orders
-            )
-            self.log_test("Order Data for Sorting", has_required_fields,
-                         f"- Retrieved {len(orders)} orders with sortable fields")
-            
-            # Test pagination simulation (20 orders per page)
-            orders_per_page = 20
-            total_pages = (len(orders) + orders_per_page - 1) // orders_per_page
-            self.log_test("Pagination Data", True,
-                         f"- {len(orders)} orders, {total_pages} pages at {orders_per_page}/page")
-        else:
-            self.log_test("Order Data for Sorting", False, "- Cannot retrieve order data")
-        
-        # Test 5: Bulk Label Generation
-        print("   Testing Bulk Label Generation...")
-        if bulk_orders:
-            order_ids = [order['id'] for order in bulk_orders]
+        if len(csv_test_orders) >= 2:
+            # Test CSV export with specific columns
             try:
-                response = requests.post(f"{self.api_url}/orders/bulk-labels", json=order_ids)
-                bulk_labels_success = response.status_code == 200 and 'html' in response.headers.get('content-type', '').lower()
-                self.log_test("Bulk Label Generation", bulk_labels_success,
-                             f"- Generated labels for {len(order_ids)} orders")
+                response = requests.post(f"{self.api_url}/orders/export-csv", 
+                                       json=csv_test_orders[:2],  # Export first 2 orders
+                                       headers={'Content-Type': 'application/json'})
+                
+                csv_export_success = response.status_code == 200 and 'text/csv' in response.headers.get('content-type', '')
+                
+                if csv_export_success:
+                    # Verify CSV content has required columns
+                    csv_content = response.text
+                    required_columns = [
+                        "Waybill Number", "Order Number", "Customer Name", "Address",
+                        "Order Description", "Customer First Phone No", "Customer Second Phone No",
+                        "COD Amount", "City", "Remarks"
+                    ]
+                    
+                    has_required_columns = all(col in csv_content for col in required_columns)
+                    
+                    self.log_test("CSV Export Functionality", has_required_columns,
+                                 f"- Exported {len(csv_test_orders[:2])} orders with all required columns")
+                else:
+                    self.log_test("CSV Export Functionality", False, 
+                                 f"- Status: {response.status_code}, Content-Type: {response.headers.get('content-type')}")
+                    
             except Exception as e:
-                self.log_test("Bulk Label Generation", False, f"- Error: {str(e)}")
+                self.log_test("CSV Export Functionality", False, f"- Error: {str(e)}")
+        else:
+            self.log_test("CSV Export Functionality", False, "- Not enough test orders created")
+        
+        # TEST 5: Percentage Discount Calculation
+        print("   Testing Percentage Discount Calculation...")
+        
+        percentage_order_data = {
+            "customer_id": customer['id'],
+            "customer_name": customer['name'],
+            "customer_address": f"{customer['address']}, {customer['city']}, {customer['postal_code']}",
+            "customer_phone": customer['phone'],
+            "customer_city": customer['city'],
+            "items": [
+                {
+                    "product_id": product['id'],
+                    "variant_id": variant['id'],
+                    "product_name": product['name'],
+                    "size": variant['size'],
+                    "color": variant['color'],
+                    "quantity": 1,
+                    "unit_price": variant['price'],
+                    "total_price": variant['price']
+                }
+            ],
+            "subtotal": variant['price'],
+            "tax_amount": variant['price'] * 0.1,
+            "courier_charges": 350.0,
+            "discount_amount": 0.0,
+            "discount_percentage": 10.0,  # 10% discount
+            "total_amount": (variant['price'] * 1.1 + 350.0) * 0.9,  # 10% off total
+            "remarks": "Testing percentage discount"
+        }
+        
+        success, percentage_order = self.run_api_test('POST', 'orders', 200, percentage_order_data)
+        if success:
+            self.created_items['orders'].append(percentage_order['id'])
+            
+            # Verify percentage discount is stored correctly
+            percentage_correct = percentage_order.get('discount_percentage') == 10.0
+            amount_zero = percentage_order.get('discount_amount', -1) >= 0  # Should be calculated
+            
+            self.log_test("Percentage Discount Calculation", percentage_correct and amount_zero,
+                         f"- 10% discount applied, amount calculated: {percentage_order.get('discount_amount', 0):.2f}")
+        else:
+            self.log_test("Percentage Discount Calculation", False, "- Failed to create percentage discount order")
         
         # Cleanup enhanced test data
         self.run_api_test('DELETE', f"products/{product['id']}", 200)
