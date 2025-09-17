@@ -1641,31 +1641,61 @@ const Orders = () => {
         ))}
       </div>
 
-      {/* Create Order Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      {/* Create/Edit Order Dialog */}
+      <Dialog open={showAddDialog || showEditDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowAddDialog(false);
+          setShowEditDialog(false);
+          setEditingOrder(null);
+          resetNewOrder();
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create New Order</DialogTitle>
+            <DialogTitle>{editingOrder ? 'Edit Order' : 'Create New Order'}</DialogTitle>
             <DialogDescription>
-              Create a new order for a customer with multiple items.
+              {editingOrder ? 'Update order details and items.' : 'Create a new order for a customer with multiple items.'}
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-6">
-            <div>
-              <Label htmlFor="customer-select">Select Customer</Label>
-              <Select value={newOrder.customer_id} onValueChange={(value) => setNewOrder({...newOrder, customer_id: value})}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.id} value={customer.id}>
-                      {customer.name} - {customer.email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="customer-select">Select Customer</Label>
+                <div className="flex space-x-2">
+                  <Select value={newOrder.customer_id} onValueChange={(value) => setNewOrder({...newOrder, customer_id: value})}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Choose a customer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.map((customer) => (
+                        <SelectItem key={customer.id} value={customer.id}>
+                          {customer.name} - {customer.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    type="button" 
+                    onClick={() => setShowCustomerDialog(true)} 
+                    variant="outline" 
+                    size="sm"
+                    className="px-3"
+                  >
+                    <Plus size={16} />
+                  </Button>
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="customer-phone-2">Secondary Phone (Optional)</Label>
+                <Input
+                  id="customer-phone-2"
+                  value={newOrder.customer_phone_2}
+                  onChange={(e) => setNewOrder({...newOrder, customer_phone_2: e.target.value})}
+                  placeholder="+94 77 123 4567"
+                />
+              </div>
             </div>
 
             <div>
@@ -1752,35 +1782,116 @@ const Orders = () => {
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="tax-rate">Tax Rate (%)</Label>
-              <Input
-                id="tax-rate"
-                type="number"
-                step="0.01"
-                value={newOrder.tax_rate}
-                onChange={(e) => setNewOrder({...newOrder, tax_rate: parseFloat(e.target.value) || 0})}
-                placeholder="0"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <Label htmlFor="tax-rate">Tax Rate (%)</Label>
+                <Input
+                  id="tax-rate"
+                  type="number"
+                  step="0.01"
+                  value={newOrder.tax_rate}
+                  onChange={(e) => setNewOrder({...newOrder, tax_rate: parseFloat(e.target.value) || 0})}
+                  placeholder="0"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="courier-charges">Courier Charges (LKR)</Label>
+                <Input
+                  id="courier-charges"
+                  type="number"
+                  step="0.01"
+                  value={newOrder.courier_charges}
+                  onChange={(e) => setNewOrder({...newOrder, courier_charges: parseFloat(e.target.value) || 0})}
+                  placeholder="350"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="discount-type">Discount Type</Label>
+                <Select value={newOrder.discount_type} onValueChange={(value) => setNewOrder({...newOrder, discount_type: value})}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="amount">Amount (LKR)</SelectItem>
+                    <SelectItem value="percentage">Percentage (%)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="discount-value">
+                  Discount {newOrder.discount_type === 'percentage' ? '(%)' : '(LKR)'}
+                </Label>
+                <Input
+                  id="discount-value"
+                  type="number"
+                  step="0.01"
+                  value={newOrder.discount_type === 'percentage' ? newOrder.discount_percentage : newOrder.discount_amount}
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value) || 0;
+                    if (newOrder.discount_type === 'percentage') {
+                      setNewOrder({...newOrder, discount_percentage: value, discount_amount: 0});
+                    } else {
+                      setNewOrder({...newOrder, discount_amount: value, discount_percentage: 0});
+                    }
+                  }}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="tracking-number">Waybill/Tracking Number (Optional)</Label>
+                <Input
+                  id="tracking-number"
+                  value={newOrder.tracking_number}
+                  onChange={(e) => setNewOrder({...newOrder, tracking_number: e.target.value})}
+                  placeholder="Enter tracking number"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="cod-amount">COD Amount (LKR)</Label>
+                <Input
+                  id="cod-amount"
+                  type="number"
+                  step="0.01"
+                  value={newOrder.cod_amount}
+                  onChange={(e) => setNewOrder({...newOrder, cod_amount: parseFloat(e.target.value) || 0})}
+                  placeholder="Will default to total amount"
+                />
+              </div>
             </div>
 
             <div>
-              <Label htmlFor="tracking-number">Waybill/Tracking Number (Optional)</Label>
-              <Input
-                id="tracking-number"
-                value={newOrder.tracking_number}
-                onChange={(e) => setNewOrder({...newOrder, tracking_number: e.target.value})}
-                placeholder="Enter tracking number"
+              <Label htmlFor="remarks">Remarks (Optional)</Label>
+              <Textarea
+                id="remarks"
+                value={newOrder.remarks}
+                onChange={(e) => setNewOrder({...newOrder, remarks: e.target.value})}
+                placeholder="Any additional notes or remarks"
+                rows={3}
               />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowAddDialog(false);
+              setShowEditDialog(false);
+              setEditingOrder(null);
+              resetNewOrder();
+            }}>
               Cancel
             </Button>
-            <Button onClick={handleCreateOrder} className="bg-gradient-to-r from-emerald-600 to-cyan-600">
-              Create Order
+            <Button 
+              onClick={editingOrder ? handleUpdateOrder : handleCreateOrder} 
+              className="bg-gradient-to-r from-emerald-600 to-cyan-600"
+            >
+              {editingOrder ? 'Update Order' : 'Create Order'}
             </Button>
           </DialogFooter>
         </DialogContent>
