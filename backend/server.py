@@ -176,25 +176,6 @@ async def get_products():
     products = await db.products.find().to_list(1000)
     return [Product(**parse_from_mongo(product)) for product in products]
 
-@api_router.get("/products/{product_id}", response_model=Product)
-async def get_product(product_id: str):
-    product = await db.products.find_one({"id": product_id})
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return Product(**parse_from_mongo(product))
-
-@api_router.put("/products/{product_id}", response_model=Product)
-async def update_product(product_id: str, product: Product):
-    product.updated_at = datetime.now(timezone.utc)
-    product_dict = prepare_for_mongo(product.dict())
-    await db.products.update_one({"id": product_id}, {"$set": product_dict})
-    return product
-
-@api_router.delete("/products/{product_id}")
-async def delete_product(product_id: str):
-    await db.products.delete_one({"id": product_id})
-    return {"message": "Product deleted successfully"}
-
 @api_router.get("/products/low-stock")
 async def get_low_stock_products():
     products = await db.products.find().to_list(1000)
@@ -215,6 +196,25 @@ async def get_low_stock_products():
                 })
     
     return low_stock_items
+
+@api_router.get("/products/{product_id}", response_model=Product)
+async def get_product(product_id: str):
+    product = await db.products.find_one({"id": product_id})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return Product(**parse_from_mongo(product))
+
+@api_router.put("/products/{product_id}", response_model=Product)
+async def update_product(product_id: str, product: Product):
+    product.updated_at = datetime.now(timezone.utc)
+    product_dict = prepare_for_mongo(product.dict())
+    await db.products.update_one({"id": product_id}, {"$set": product_dict})
+    return product
+
+@api_router.delete("/products/{product_id}")
+async def delete_product(product_id: str):
+    await db.products.delete_one({"id": product_id})
+    return {"message": "Product deleted successfully"}
 
 # Customer Routes
 @api_router.post("/customers", response_model=Customer)
