@@ -931,7 +931,8 @@ const Orders = () => {
         items: orderItems,
         subtotal,
         tax_amount: taxAmount,
-        total_amount: totalAmount
+        total_amount: totalAmount,
+        tracking_number: newOrder.tracking_number || null
       };
 
       await axios.post(`${API}/orders`, orderData);
@@ -940,11 +941,141 @@ const Orders = () => {
       setNewOrder({
         customer_id: '',
         items: [{ product_id: '', variant_id: '', quantity: 1 }],
-        tax_rate: 0
+        tax_rate: 0,
+        tracking_number: ''
       });
       fetchOrders();
     } catch (error) {
       toast.error("Failed to create order");
+    }
+  };
+
+  const handleBulkCreateOrders = async () => {
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const orderData of bulkOrders) {
+        try {
+          const customer = customers.find(c => c.id === orderData.customer_id);
+          if (!customer) {
+            errorCount++;
+            continue;
+          }
+
+          const orderItems = [];
+          let subtotal = 0;
+
+          for (const item of orderData.items) {
+            const product = products.find(p => p.id === item.product_id);
+            const variant = product?.variants?.find(v => v.id === item.variant_id);
+            
+            if (!product || !variant) {
+              errorCount++;
+              continue;
+            }
+
+            const totalPrice = variant.price * item.quantity;
+            subtotal += totalPrice;
+
+            orderItems.push({
+              product_id: product.id,
+              variant_id: variant.id,
+              product_name: product.name,
+              size: variant.size,
+              color: variant.color,
+              quantity: item.quantity,
+              unit_price: variant.price,
+              total_price: totalPrice
+            });
+          }
+
+          if (orderItems.length === 0) {
+            errorCount++;
+            continue;
+          }
+
+          const taxAmount = subtotal * (orderData.tax_rate / 100);
+          const totalAmount = subtotal + taxAmount;
+
+          const finalOrderData = {
+            customer_id: customer.id,
+            customer_name: customer.name,
+            customer_address: `${customer.address}, ${customer.city}, ${customer.postal_code}`,
+            customer_phone: customer.phone,
+            items: orderItems,
+            subtotal,
+            tax_amount: taxAmount,
+            total_amount: totalAmount,
+            tracking_number: orderData.tracking_number || null
+          };
+
+          await axios.post(`${API}/orders`, finalOrderData);
+          successCount++;
+        } catch (error) {
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`${successCount} orders created successfully`);
+      }
+      if (errorCount > 0) {
+        toast.error(`${errorCount} orders failed to create`);
+      }
+
+      setShowBulkCreateDialog(false);
+      setBulkOrders([
+        {
+          customer_id: '',
+          items: [{ product_id: '', variant_id: '', quantity: 1 }],
+          tax_rate: 0,
+          tracking_number: ''
+        }
+      ]);
+      fetchOrders();
+    } catch (error) {
+      toast.error("Failed to create bulk orders");
+    }
+  };
+
+  const handleBulkStatusChange = async () => {
+    if (selectedOrders.length === 0) {
+      toast.error("Please select orders to update");
+      return;
+    }
+
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const orderId of selectedOrders) {
+        try {
+          await axios.put(`${API}/orders/${orderId}/status`, null, {
+            params: {
+              status: bulkStatusData.status,
+              tracking_number: bulkStatusData.tracking_number || undefined
+            }
+          });
+          successCount++;
+        } catch (error) {
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`${successCount} orders updated successfully`);
+      }
+      if (errorCount > 0) {
+        toast.error(`${errorCount} orders failed to update`);
+      }
+
+      setShowBulkStatusDialog(false);
+      setSelectedOrders([]);
+      setBulkStatusData({ status: 'on_courier', tracking_number: '' });
+      fetchOrders();
+    } catch (error) {
+      toast.error("Failed to update orders");
     }
   };
 
