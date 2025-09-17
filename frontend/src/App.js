@@ -1454,16 +1454,244 @@ const Finance = () => {
   );
 };
 
-const SettingsPage = () => (
-  <div className="p-6">
-    <h1 className="text-3xl font-bold mb-6">Settings</h1>
-    <Card>
-      <CardContent className="p-6">
-        <p className="text-slate-600">Settings functionality coming soon...</p>
-      </CardContent>
-    </Card>
-  </div>
-);
+// Settings Component
+const SettingsPage = () => {
+  const [settings, setSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const response = await axios.get(`${API}/settings`);
+      setSettings(response.data);
+    } catch (error) {
+      toast.error("Failed to fetch settings");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    setSaving(true);
+    try {
+      await axios.put(`${API}/settings`, settings);
+      toast.success("Settings saved successfully");
+    } catch (error) {
+      toast.error("Failed to save settings");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateSetting = (field, value) => {
+    setSettings({ ...settings, [field]: value });
+  };
+
+  const previewLabel = () => {
+    if (!settings) return;
+    
+    // Create a sample order for preview
+    const sampleOrder = {
+      order_number: "ORD-000001",
+      tracking_number: "TRK123456789",
+      created_at: new Date().toISOString(),
+      customer_name: "John Doe",
+      customer_address: "123 Sample Street, Colombo 01, 00100",
+      customer_phone: "+94 71 234 5678",
+      total_amount: 2500.00,
+      items: [
+        { product_name: "Cotton T-Shirt", size: "M", color: "Blue", quantity: 2 },
+        { product_name: "Denim Jeans", size: "L", color: "Black", quantity: 1 }
+      ]
+    };
+
+    let html = settings.shipping_label_template;
+    html = html.replace(/{{business_name}}/g, settings.business_name);
+    html = html.replace(/{{business_address}}/g, settings.address);
+    html = html.replace(/{{business_phone}}/g, settings.phone);
+    html = html.replace(/{{customer_name}}/g, sampleOrder.customer_name);
+    html = html.replace(/{{customer_address}}/g, sampleOrder.customer_address);
+    html = html.replace(/{{customer_phone}}/g, sampleOrder.customer_phone);
+    html = html.replace(/{{order_number}}/g, sampleOrder.order_number);
+    html = html.replace(/{{tracking_number}}/g, sampleOrder.tracking_number);
+    html = html.replace(/{{order_date}}/g, new Date(sampleOrder.created_at).toLocaleDateString());
+    html = html.replace(/{{total_amount}}/g, sampleOrder.total_amount.toFixed(2));
+    
+    const orderItemsHtml = sampleOrder.items.map(item => 
+      `<div>${item.product_name} (${item.size}, ${item.color}) x${item.quantity}</div>`
+    ).join('');
+    html = html.replace(/{{order_items}}/g, orderItemsHtml);
+
+    const newWindow = window.open();
+    newWindow.document.write(html);
+    newWindow.document.close();
+  };
+
+  if (loading) return <div className="p-6">Loading settings...</div>;
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-slate-800">Settings</h1>
+        <Button 
+          onClick={handleSaveSettings} 
+          disabled={saving}
+          className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700"
+        >
+          {saving ? "Saving..." : "Save Settings"}
+        </Button>
+      </div>
+
+      <Tabs defaultValue="business" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="business">Business Information</TabsTrigger>
+          <TabsTrigger value="labels">Shipping Labels</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="business" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Business Details</CardTitle>
+              <CardDescription>
+                Configure your business information that will appear on invoices and shipping labels.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="business-name">Business Name</Label>
+                  <Input
+                    id="business-name"
+                    value={settings?.business_name || ''}
+                    onChange={(e) => updateSetting('business_name', e.target.value)}
+                    placeholder="My Clothing Store"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="business-email">Email</Label>
+                  <Input
+                    id="business-email"
+                    type="email"
+                    value={settings?.email || ''}
+                    onChange={(e) => updateSetting('email', e.target.value)}
+                    placeholder="info@myclothingstore.com"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="business-phone">Phone Number</Label>
+                <Input
+                  id="business-phone"
+                  value={settings?.phone || ''}
+                  onChange={(e) => updateSetting('phone', e.target.value)}
+                  placeholder="+94 11 234 5678"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="business-address">Business Address</Label>
+                <Textarea
+                  id="business-address"
+                  value={settings?.address || ''}
+                  onChange={(e) => updateSetting('address', e.target.value)}
+                  placeholder="Enter your complete business address"
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="tax-rate">Default Tax Rate (%)</Label>
+                <Input
+                  id="tax-rate"
+                  type="number"
+                  step="0.01"
+                  value={settings?.tax_rate || 0}
+                  onChange={(e) => updateSetting('tax_rate', parseFloat(e.target.value) || 0)}
+                  placeholder="0"
+                />
+                <p className="text-sm text-slate-500 mt-1">
+                  This will be used as the default tax rate for new orders
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="labels" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Shipping Label Template</CardTitle>
+              <CardDescription>
+                Customize the HTML template for your shipping labels. Labels are designed for A4 paper size.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-4 mb-4">
+                <Button 
+                  onClick={previewLabel} 
+                  variant="outline"
+                  className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                >
+                  <Eye size={16} className="mr-2" />
+                  Preview Label
+                </Button>
+                <div className="text-sm text-slate-600">
+                  <p><strong>Available Variables:</strong></p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-1 text-xs">
+                    <code>{{'{'}business_name{'}'}}</code>
+                    <code>{{'{'}business_address{'}'}}</code>
+                    <code>{{'{'}business_phone{'}'}}</code>
+                    <code>{{'{'}customer_name{'}'}}</code>
+                    <code>{{'{'}customer_address{'}'}}</code>
+                    <code>{{'{'}customer_phone{'}'}}</code>
+                    <code>{{'{'}order_number{'}'}}</code>
+                    <code>{{'{'}tracking_number{'}'}}</code>
+                    <code>{{'{'}order_date{'}'}}</code>
+                    <code>{{'{'}order_items{'}'}}</code>
+                    <code>{{'{'}total_amount{'}'}}</code>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="label-template">HTML Template</Label>
+                <Textarea
+                  id="label-template"
+                  value={settings?.shipping_label_template || ''}
+                  onChange={(e) => updateSetting('shipping_label_template', e.target.value)}
+                  rows={20}
+                  className="font-mono text-sm"
+                  placeholder="Enter your HTML template here..."
+                />
+                <p className="text-sm text-slate-500 mt-1">
+                  Use HTML and inline CSS. The template is designed for A4 paper (210mm x 297mm).
+                </p>
+              </div>
+
+              <Alert className="bg-blue-50 border-blue-200">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Template Tips:</strong>
+                  <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                    <li>Use inline CSS for styling (external stylesheets won't work in print)</li>
+                    <li>Set page size to A4: <code>width: 210mm; height: 297mm</code></li>
+                    <li>Use <code>page-break-after: always;</code> for bulk printing separation</li>
+                    <li>Test your template with the preview function</li>
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
 
 // Main App Component
 function App() {
